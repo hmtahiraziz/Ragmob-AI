@@ -1,4 +1,4 @@
-# AI Mobile Kit 
+# Ragmob AI
 
 A reusable **Expo + React Native** starter for AI apps. It ships with streaming
 LLM chat wired to a Python **FastAPI RAG backend**, **Clerk** authentication with
