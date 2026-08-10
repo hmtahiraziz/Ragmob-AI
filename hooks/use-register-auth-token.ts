@@ -8,11 +8,24 @@ import { registerTokenGetter } from '@/lib/auth/token';
  * Mount once inside ClerkProvider (e.g. root layout).
  */
 export function useRegisterAuthToken() {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
     if (!isLoaded) return;
-    registerTokenGetter(() => getToken());
+
+    if (!isSignedIn) {
+      registerTokenGetter(null);
+      return;
+    }
+
+    registerTokenGetter(async () => {
+      try {
+        return await getToken();
+      } catch {
+        return null;
+      }
+    });
+
     return () => registerTokenGetter(null);
-  }, [getToken, isLoaded]);
+  }, [getToken, isLoaded, isSignedIn]);
 }

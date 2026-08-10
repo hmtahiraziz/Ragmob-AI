@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, type ReactNode } from 'react';
 import {
   Animated,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -44,7 +45,9 @@ export function Screen({
 
   useEffect(() => {
     if (!fadeIn) return;
-    Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    const anim = Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
   }, [fadeIn, opacity]);
 
   const safeArea: ViewStyle = {
@@ -82,7 +85,15 @@ export function Screen({
   );
 
   return (
-    <Animated.View style={[styles.flex, { backgroundColor: surface }, safeArea, style, { opacity }]}>
+    <Animated.View
+      style={[
+        styles.flex,
+        { backgroundColor: surface },
+        safeArea,
+        style,
+        { opacity },
+        fadeIn && Platform.OS === 'web' ? styles.webFadeRoot : null,
+      ]}>
       {gradient ? (
         <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
       ) : null}
@@ -93,4 +104,5 @@ export function Screen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  webFadeRoot: { overflow: 'visible' },
 });

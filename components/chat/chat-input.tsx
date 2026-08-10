@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
-import { useRef } from 'react';
+import { useState } from 'react';
 import {
-  Animated,
+  Platform,
   StyleSheet,
   TextInput,
   View,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { IconButton } from '@/components/ui';
-import { Radius, Spacing, Typography } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type ChatInputProps = {
@@ -20,6 +20,8 @@ type ChatInputProps = {
   onFocus?: TextInputProps['onFocus'];
   isLoading?: boolean;
   disabled?: boolean;
+  /** When true, omits the top divider — for inline use on Home. */
+  embedded?: boolean;
 };
 
 export function ChatInput({
@@ -30,17 +32,15 @@ export function ChatInput({
   onFocus,
   isLoading,
   disabled,
+  embedded = false,
 }: ChatInputProps) {
   const { colors } = useTheme();
-  const borderAnim = useRef(new Animated.Value(0)).current;
+  const [focused, setFocused] = useState(false);
 
   const canSend = value.trim().length > 0 && !disabled && !isLoading;
   const canStop = isLoading && !disabled;
 
-  const borderColor = borderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.border, colors.ink],
-  });
+  const borderColor = focused ? colors.ink : colors.borderStrong;
 
   const sendIcon = isLoading ? 'square' : canSend ? 'arrow-up' : 'plus';
 
@@ -59,53 +59,62 @@ export function ChatInput({
     <View
       style={[
         styles.bar,
+        embedded && styles.barEmbedded,
         {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
         },
       ]}>
-      <View style={styles.row}>
-        <Animated.View
+      <View
+        style={[
+          styles.inputWrap,
+          {
+            backgroundColor: colors.surface2,
+            borderColor,
+          },
+        ]}>
+        <TextInput
           style={[
-            styles.inputWrap,
+            styles.input,
             {
-              backgroundColor: colors.surface,
-              borderColor,
+              color: colors.text,
+              ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
             },
-          ]}>
-          <TextInput
-            style={[styles.input, Typography.body, { color: colors.text }]}
-            placeholder="Ask anything…"
-            placeholderTextColor={colors.textMuted}
-            value={value}
-            onChangeText={onChangeText}
-            editable={!disabled && !isLoading}
-            multiline
-            blurOnSubmit={false}
-            maxLength={4000}
-            textAlignVertical="center"
-            onFocus={(e) => {
-              Animated.timing(borderAnim, { toValue: 1, duration: 200, useNativeDriver: false }).start();
-              onFocus?.(e);
-            }}
-            onBlur={() => {
-              Animated.timing(borderAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-            }}
-          />
-          <IconButton
-            icon={sendIcon}
-            variant={canSend || canStop ? 'brand' : 'surface'}
-            size={20}
-            disabled={!canSend && !canStop}
-            accessibilityLabel={isLoading ? 'Stop generating' : 'Send message'}
-            onPress={handleSend}
-            style={styles.send}
-          />
-        </Animated.View>
+          ]}
+          placeholder="Ask anything..."
+          placeholderTextColor={colors.textSecondary}
+          value={value}
+          onChangeText={onChangeText}
+          editable={!disabled && !isLoading}
+          multiline
+          blurOnSubmit={false}
+          maxLength={4000}
+          scrollEnabled
+          textAlignVertical="center"
+          {...(Platform.OS === 'android' ? { includeFontPadding: false } : null)}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={() => {
+            setFocused(false);
+          }}
+        />
+        <IconButton
+          icon={sendIcon}
+          variant={canSend || canStop ? 'brand' : 'surface'}
+          size={20}
+          disabled={!canSend && !canStop}
+          accessibilityLabel={isLoading ? 'Stop generating' : 'Send message'}
+          onPress={handleSend}
+          style={styles.send}
+        />
       </View>
     </View>
   );
 }
+
+const INPUT_MIN_HEIGHT = 44;
 
 const styles = StyleSheet.create({
   bar: {
@@ -114,23 +123,35 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
   },
-  row: { flexDirection: 'row', alignItems: 'flex-end' },
+  barEmbedded: {
+    borderTopWidth: 0,
+    backgroundColor: 'transparent',
+    paddingTop: 0,
+  },
   inputWrap: {
-    flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     borderRadius: Radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingLeft: Spacing.md,
+    paddingLeft: Spacing.lg,
     paddingRight: 6,
-    paddingVertical: 6,
-    maxHeight: 132,
+    minHeight: INPUT_MIN_HEIGHT + 8,
+    maxHeight: 140,
+    overflow: 'hidden',
   },
   input: {
     flex: 1,
-    minHeight: 32,
-    maxHeight: 96,
-    paddingVertical: 6,
+    minHeight: INPUT_MIN_HEIGHT,
+    maxHeight: 120,
+    fontSize: 16,
+    lineHeight: Platform.OS === 'ios' ? 20 : 22,
+    paddingVertical: Platform.OS === 'android' ? 10 : 12,
+    paddingRight: Spacing.sm,
+    paddingLeft: 0,
   },
-  send: { width: 40, height: 40, marginLeft: Spacing.sm },
+  send: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+  },
 });

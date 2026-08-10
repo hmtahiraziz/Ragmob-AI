@@ -12,6 +12,7 @@ export { MiniBarChart } from './mini-bar-chart';
 export { Screen } from './screen';
 export { ChatSkeleton, Skeleton } from './skeleton';
 export { Spinner } from './spinner';
+export { SwitchRow } from './switch-row';
 export { TextField } from './text-field';
 export { Tile } from './tile';
 

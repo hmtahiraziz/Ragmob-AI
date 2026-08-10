@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,10 +13,62 @@ import {
 } from 'react-native';
 
 import { useKeyboardAwareScroll } from '@/components/ui/keyboard-aware-scroll-view';
-import { Spacing, Typography } from '@/constants/theme';
+import { Palette, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
+
+const WEB_INPUT_CLASS = 'ragmob-text-field-input';
+
+function injectWebInputStyles() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (document.getElementById('ragmob-text-field-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'ragmob-text-field-styles';
+  style.textContent = `
+    .${WEB_INPUT_CLASS} {
+      outline: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font: inherit;
+    }
+    .${WEB_INPUT_CLASS}:-webkit-autofill,
+    .${WEB_INPUT_CLASS}:-webkit-autofill:hover,
+    .${WEB_INPUT_CLASS}:-webkit-autofill:focus,
+    .${WEB_INPUT_CLASS}:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 1000px ${Palette.white} inset !important;
+      -webkit-text-fill-color: ${Palette.textPrimary} !important;
+      transition: background-color 99999s ease-out 0s;
+      caret-color: ${Palette.textPrimary};
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+const webInputStyle = Platform.OS === 'web'
+  ? ({
+      outlineStyle: 'none',
+      outlineWidth: 0,
+      borderWidth: 0,
+      backgroundColor: 'transparent',
+      boxShadow: 'none',
+      paddingHorizontal: 0,
+      margin: 0,
+      minWidth: 0,
+      height: '100%',
+      flex: 1,
+    } as const)
+  : null;
+
+const webWrapperStyle = Platform.OS === 'web' ? ({ overflow: 'hidden' } as const) : null;
 
 type TextFieldProps = TextInputProps & {
   label?: string;
@@ -47,24 +99,13 @@ export function TextField({
   const { colors, shadows } = useTheme();
   const keyboardAwareScroll = useKeyboardAwareScroll();
   const [focused, setFocused] = useState(false);
-  const focusAnim = useRef(new Animated.Value(0)).current;
   const fieldRef = useRef<View>(null);
 
   useEffect(() => {
-    Animated.timing(focusAnim, {
-      toValue: focused ? 1 : 0,
-      duration: 150,
-      useNativeDriver: false,
-    }).start();
-  }, [focused, focusAnim]);
+    injectWebInputStyles();
+  }, []);
 
-  const borderColor = error
-    ? colors.danger
-    : focusAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [colors.borderStrong, colors.ink],
-      });
-
+  const borderColor = error ? colors.danger : focused ? colors.ink : colors.borderStrong;
   const wrapperShadow = focused && !error ? shadows.focus : undefined;
 
   return (
@@ -79,9 +120,10 @@ export function TextField({
           {labelAccessory ?? null}
         </View>
       ) : null}
-      <Animated.View
+      <View
         style={[
           styles.wrapper,
+          webWrapperStyle,
           {
             backgroundColor: colors.surface,
             borderColor,
@@ -92,9 +134,10 @@ export function TextField({
           <Feather name={leftIcon} size={18} color={colors.textMuted} style={styles.leftIcon} />
         ) : null}
         <TextInput
+          {...(Platform.OS === 'web' ? { className: WEB_INPUT_CLASS } : null)}
           placeholderTextColor={colors.textMuted}
           selectionColor={colors.ink}
-          style={[styles.input, Typography.body, { color: colors.text }, style]}
+          style={[styles.input, webInputStyle, Typography.body, { color: colors.text }, style]}
           onFocus={(e) => {
             setFocused(true);
             if (fieldRef.current) {
@@ -113,7 +156,7 @@ export function TextField({
             <Feather name={rightIcon} size={18} color={colors.textMuted} />
           </Pressable>
         ) : null}
-      </Animated.View>
+      </View>
       {error ? (
         <Text style={[styles.helper, Typography.caption, { color: colors.danger }]}>{error}</Text>
       ) : hint ? (

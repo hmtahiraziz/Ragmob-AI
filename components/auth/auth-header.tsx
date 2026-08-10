@@ -16,10 +16,12 @@ export function AuthHeader({ title, subtitle }: AuthHeaderProps) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
+    const anim = Animated.parallel([
       Animated.spring(translateY, { toValue: 0, useNativeDriver: true, stiffness: 100, damping: 15 }),
       Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
+    ]);
+    anim.start();
+    return () => anim.stop();
   }, [translateY, opacity]);
 
   return (

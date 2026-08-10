@@ -1,12 +1,18 @@
-import { isClerkAPIResponseError, useSignUp } from '@clerk/clerk-expo';
+import { useSignUp } from '@clerk/clerk-expo';
 import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AuthHeader } from '@/components/auth/auth-header';
 import { GoogleButton } from '@/components/auth/google-button';
 import { Banner, Button, Divider, Screen, TextField } from '@/components/ui';
 import { Gradients, Radius, Spacing, Typography } from '@/constants/theme';
+import {
+  describeClerkAuthError,
+  isMissingAuthAttempt,
+  isValidEmail,
+  normalizeEmail,
+} from '@/lib/auth/clerk';
 import { useTheme } from '@/hooks/use-theme';
 
 function getPasswordStrength(password: string): number {
@@ -55,27 +61,59 @@ export default function SignUpScreen() {
   const showMismatch = confirmPassword.length > 0 && !passwordsMatch;
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
+  useEffect(() => {
+    if (signUp.status === 'missing_requirements') {
+      setPendingVerification(true);
+    }
+  }, [signUp.status]);
+
   if (!isLoaded) {
     return null;
   }
 
+  async function ensureSignUpAttempt(email: string) {
+    if (signUp.status === 'missing_requirements' || signUp.id) {
+      return;
+    }
+    await signUp.create({ emailAddress: email, password });
+  }
+
+  async function sendVerificationCode(email: string) {
+    await ensureSignUpAttempt(email);
+    await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+    setPendingVerification(true);
+  }
+
   const handleSubmit = async () => {
     setError(null);
+    const email = normalizeEmail(emailAddress);
+
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     if (!passwordsMatch) {
       setError('Passwords do not match');
       return;
     }
+
     setLoading(true);
     try {
-      await signUp.create({ emailAddress, password });
+      const result = await signUp.create({ emailAddress: email, password });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        return;
+      }
+
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setPendingVerification(true);
     } catch (err) {
-      if (isClerkAPIResponseError(err)) {
-        setError(err.errors[0]?.longMessage ?? err.errors[0]?.message ?? 'Sign up failed');
-      } else {
-        setError('Sign up failed. Please try again.');
-      }
+      setError(describeClerkAuthError(err, 'Sign up failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -83,29 +121,67 @@ export default function SignUpScreen() {
 
   const handleVerify = async () => {
     setError(null);
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      setError('Enter the verification code from your email.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const attempt = await signUp.attemptEmailAddressVerification({ code });
+      const attempt = await signUp.attemptEmailAddressVerification({ code: trimmedCode });
       if (attempt.status === 'complete') {
         await setActive({ session: attempt.createdSessionId });
       } else {
         setError('Verification incomplete. Please try again.');
       }
     } catch (err) {
-      if (isClerkAPIResponseError(err)) {
-        setError(err.errors[0]?.longMessage ?? err.errors[0]?.message ?? 'Verification failed');
-      } else {
-        setError('Verification failed. Please try again.');
+      setError(describeClerkAuthError(err, 'Verification failed. Please try again.'));
+      if (isMissingAuthAttempt(err)) {
+        setPendingVerification(false);
+        setCode('');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResendCode = async () => {
+    setError(null);
+    const email = normalizeEmail(emailAddress);
+
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.');
+      setPendingVerification(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendVerificationCode(email);
+    } catch (err) {
+      setError(describeClerkAuthError(err, 'Could not resend code. Please try again.'));
+      if (isMissingAuthAttempt(err)) {
+        setPendingVerification(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToSignUp = () => {
+    setPendingVerification(false);
+    setCode('');
+    setError(null);
+  };
+
   if (pendingVerification) {
     return (
       <Screen scroll keyboardAware fadeIn gradient={Gradients.auth} contentContainerStyle={styles.content}>
-        <AuthHeader title="Verify your email" subtitle={`Enter the code we sent to ${emailAddress}.`} />
+        <AuthHeader
+          title="Verify your email"
+          subtitle={`Enter the code we sent to ${normalizeEmail(emailAddress)}.`}
+        />
 
         <Banner tone="info" message="Check your inbox to verify your email." style={styles.banner} />
         {error ? <Banner tone="error" message={error} style={styles.banner} /> : null}
@@ -116,13 +192,23 @@ export default function SignUpScreen() {
           value={code}
           onChangeText={setCode}
           keyboardType="number-pad"
+          autoComplete="one-time-code"
         />
-        <Button title="Verify" size="lg" onPress={handleVerify} loading={loading} disabled={!code} fullWidth />
+        <Button
+          title="Verify"
+          size="lg"
+          onPress={handleVerify}
+          loading={loading}
+          disabled={!code.trim()}
+          fullWidth
+        />
         <Button
           title="Send a new code"
           variant="ghost"
-          onPress={() => signUp.prepareEmailAddressVerification({ strategy: 'email_code' })}
+          onPress={handleResendCode}
+          loading={loading}
         />
+        <Button title="Back" variant="ghost" onPress={handleBackToSignUp} />
       </Screen>
     );
   }
@@ -141,6 +227,7 @@ export default function SignUpScreen() {
         keyboardType="email-address"
         value={emailAddress}
         onChangeText={setEmailAddress}
+        onEndEditing={() => setEmailAddress((v) => normalizeEmail(v))}
       />
       <View>
         <TextField
@@ -171,7 +258,7 @@ export default function SignUpScreen() {
         size="lg"
         onPress={handleSubmit}
         loading={loading}
-        disabled={!emailAddress || !password || !confirmPassword || !passwordsMatch}
+        disabled={!emailAddress.trim() || !password || !confirmPassword || !passwordsMatch}
         fullWidth
       />
 

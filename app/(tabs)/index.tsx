@@ -5,14 +5,16 @@ import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Badge, Screen, Tile } from '@/components/ui';
-import { RagmobWordmark } from '@/components/brand';
+import { RagmobMark } from '@/components/brand';
+import { PersonaPicker } from '@/components/chat/persona-picker';
+import { QuickStarts } from '@/components/home/quick-starts';
+import { Button, Card, Screen } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
 import { useChatContext } from '@/hooks/chat-context';
+import { useContentWidth } from '@/hooks/use-content-width';
+import { TAB_SCREEN_EDGES, useTabScrollPadding } from '@/hooks/use-tab-scroll-padding';
 import { useTheme } from '@/hooks/use-theme';
-import type { Conversation } from '@/types/chat';
-
-const RECENT_ICON_CYCLE = ['lavender', 'ink', 'amber'] as const;
+import { CHAT_MODES, type ChatMode, type Conversation } from '@/types/chat';
 
 function getInitials(name?: string | null, email?: string | null) {
   if (name) {
@@ -27,11 +29,25 @@ function getInitials(name?: string | null, email?: string | null) {
   return '?';
 }
 
+function relativeTime(timestamp: number) {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
 export default function HomeScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { user } = useUser();
-  const { conversations, newChat, selectConversation } = useChatContext();
+  const { containerStyle, isWide } = useContentWidth();
+  const tabScrollPadding = useTabScrollPadding();
+  const { conversations, newChat, setMode, setDraft, selectConversation } = useChatContext();
 
   const firstName = user?.firstName ?? user?.username ?? 'there';
   const email = user?.primaryEmailAddress?.emailAddress;
@@ -41,163 +57,247 @@ export default function HomeScreen() {
       [...conversations]
         .filter((c) => c.messages.length > 0)
         .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, 4),
+        .slice(0, 5),
     [conversations],
   );
 
+  const goToChat = () => {
+    router.push('/(tabs)/chat');
+  };
+
+  /** Opens Chat tab with the full history sheet (all saved conversations). */
+  const seeAllChats = () => {
+    router.push('/(tabs)/chat?history=1');
+  };
+
   const openNewChat = () => {
     newChat();
-    router.push('/(tabs)/chat');
+    goToChat();
+  };
+
+  const openWithMode = (mode: ChatMode) => {
+    newChat();
+    setMode(mode);
+    goToChat();
+  };
+
+  const openWithPrompt = (prompt: string) => {
+    newChat();
+    setDraft(prompt);
+    goToChat();
   };
 
   const openConversation = (conversation: Conversation) => {
     selectConversation(conversation.id);
-    router.push('/(tabs)/chat');
+    goToChat();
   };
 
   return (
-    <Screen scroll padded={false} fadeIn contentContainerStyle={styles.content}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topLeft}>
-          <RagmobWordmark markSize={28} />
+    <Screen
+      scroll
+      padded={false}
+      edges={TAB_SCREEN_EDGES}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: tabScrollPadding }]}>
+      <View style={[styles.page, containerStyle, isWide && styles.pageWide]}>
+        {/* Header */}
+        <View style={styles.topBar}>
+          <RagmobMark size={32} />
+          <Pressable
+            onPress={() => router.push('/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile"
+            style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
+            {user?.hasImage ? (
+              <Image source={{ uri: user.imageUrl }} style={styles.avatar} contentFit="cover" />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.lavenderSoft }]}>
+                <Text style={[Typography.caption, { color: colors.primaryDark, fontWeight: '700' }]}>
+                  {getInitials(user?.fullName, email)}
+                </Text>
+              </View>
+            )}
+          </Pressable>
         </View>
-        <Pressable onPress={() => router.push('/profile')}>
-          {user?.hasImage ? (
-            <Image source={{ uri: user.imageUrl }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.lavenderSoft }]}>
-              <Text style={[Typography.caption, { color: colors.primaryDark, fontWeight: '700' }]}>
-                {getInitials(user?.fullName, email)}
-              </Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
 
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <Text style={[styles.hello, { color: colors.text }]}>Hello {firstName}</Text>
-        <Text style={[Typography.body, { color: colors.textSecondary }]}>Make your day easy with us</Text>
-      </View>
-
-      {/* Hero tiles */}
-      <View style={styles.hero}>
-        <Tile
-          title="Talk with Cooper"
-          subtitle="Let's try it now"
-          icon="mic"
-          background={colors.primary}
-          iconBackground={colors.surface}
-          iconColor={colors.ink}
-          textColor={colors.ink}
-          subtitleColor="rgba(10,10,10,0.55)"
-          onPress={openNewChat}
-          style={styles.heroLeft}
-        />
-        <View style={styles.heroRight}>
-          <Tile
-            title="New chat"
-            icon="message-square"
-            background={colors.accentAmber}
-            iconBackground={colors.surface}
-            iconColor={colors.ink}
-            textColor={colors.ink}
-            subtitleColor="rgba(10,10,10,0.55)"
-            badge={<Badge label="New" background={colors.surface} color={colors.danger} />}
-            onPress={openNewChat}
-            style={styles.heroSmall}
-          />
-          <Tile
-            title="Search by image"
-            icon="maximize"
-            background={colors.ink}
-            iconBackground="rgba(255,255,255,0.14)"
-            iconColor={colors.onInk}
-            textColor={colors.onInk}
-            subtitleColor="rgba(255,255,255,0.6)"
-            onPress={openNewChat}
-            style={styles.heroSmall}
-          />
-        </View>
-      </View>
-
-      {/* Recent Search */}
-      <View style={styles.sectionHeader}>
-        <Text style={[Typography.heading, { color: colors.text }]}>Recent Search</Text>
-        <Pressable hitSlop={8} onPress={() => router.push('/(tabs)/chat')}>
-          <Text style={[Typography.caption, { color: colors.textSecondary }]}>See All</Text>
-        </Pressable>
-      </View>
-
-      {recent.length === 0 ? (
-        <View style={[styles.emptyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {/* Greeting */}
+        <View style={styles.greeting}>
+          <Text style={[styles.hello, { color: colors.text }]}>Hello, {firstName}</Text>
           <Text style={[Typography.body, { color: colors.textSecondary }]}>
-            No conversations yet. Start a new chat with ragmob.
+            Your AI assistant, ready when you are.
           </Text>
         </View>
-      ) : (
-        <View style={styles.recentList}>
-          {recent.map((conversation, index) => {
-            const accent = RECENT_ICON_CYCLE[index % RECENT_ICON_CYCLE.length];
-            const badgeBg =
-              accent === 'lavender' ? colors.primary : accent === 'amber' ? colors.accentAmber : colors.ink;
-            const badgeFg = accent === 'ink' ? colors.onInk : colors.ink;
-            return (
-              <Pressable
-                key={conversation.id}
-                onPress={() => openConversation(conversation)}
-                style={({ pressed }) => [
-                  styles.recentRow,
-                  { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
-                ]}>
-                <View style={[styles.recentIcon, { backgroundColor: badgeBg }]}>
-                  <Feather name="message-circle" size={16} color={badgeFg} />
-                </View>
-                <View style={styles.recentText}>
-                  <Text style={[Typography.body, { color: colors.text }]} numberOfLines={1}>
-                    {conversation.title}
-                  </Text>
-                  <Text style={[Typography.caption, { color: colors.textMuted }]} numberOfLines={1}>
-                    {conversation.messages.length} messages
-                  </Text>
-                </View>
-                <Feather name="more-horizontal" size={20} color={colors.textMuted} />
-              </Pressable>
-            );
-          })}
+
+        {/* Primary CTA */}
+        <Pressable
+          onPress={openNewChat}
+          accessibilityRole="button"
+          accessibilityLabel="Start a new chat"
+          style={({ pressed }) => [{ opacity: pressed ? 0.94 : 1 }]}>
+          <View style={[styles.ctaCard, { backgroundColor: colors.ink }]}>
+            <View style={[styles.ctaIcon, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+              <Feather name="message-circle" size={22} color={colors.onInk} />
+            </View>
+            <View style={styles.ctaCopy}>
+              <Text style={[Typography.heading, { color: colors.onInk }]}>New chat</Text>
+              <Text style={[Typography.caption, { color: 'rgba(255,255,255,0.72)' }]}>
+                Ask anything — streaming replies in seconds
+              </Text>
+            </View>
+            <View style={[styles.ctaArrow, { backgroundColor: colors.primary }]}>
+              <Feather name="arrow-right" size={18} color={colors.ink} />
+            </View>
+          </View>
+        </Pressable>
+
+        <QuickStarts onSelect={openWithPrompt} />
+
+        {/* Personas */}
+        <PersonaPicker
+          onSelect={openWithMode}
+          showHeading
+          style={styles.personaSection}
+        />
+
+        {/* Recent chats */}
+        <View style={styles.sectionHeader}>
+          <Text style={[Typography.label, { color: colors.textMuted }]}>Recent chats</Text>
+          {recent.length > 0 ? (
+            <Pressable hitSlop={8} onPress={seeAllChats}>
+              <Text style={[Typography.caption, { color: colors.textSecondary, fontWeight: '600' }]}>
+                See all
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
-      )}
+
+        {recent.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.lavenderSoft }]}>
+              <Feather name="message-square" size={20} color={colors.primaryDark} />
+            </View>
+            <Text style={[Typography.body, { color: colors.text, fontWeight: '600', textAlign: 'center' }]}>
+              No conversations yet
+            </Text>
+            <Text style={[Typography.caption, { color: colors.textMuted, textAlign: 'center' }]}>
+              Tap New chat above to start your first session.
+            </Text>
+            <Button title="Start chatting" onPress={openNewChat} size="md" style={styles.emptyButton} />
+          </Card>
+        ) : (
+          <View style={styles.recentList}>
+            {recent.map((conversation) => {
+              const modeLabel =
+                CHAT_MODES.find((m) => m.id === conversation.mode)?.label ?? 'General';
+              return (
+                <Pressable
+                  key={conversation.id}
+                  onPress={() => openConversation(conversation)}
+                  style={({ pressed }) => [
+                    styles.recentRow,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.88 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.recentIcon, { backgroundColor: colors.lavenderSoft }]}>
+                    <Feather name="message-circle" size={18} color={colors.primaryDark} />
+                  </View>
+                  <View style={styles.recentText}>
+                    <Text style={[Typography.body, { color: colors.text, fontWeight: '500' }]} numberOfLines={1}>
+                      {conversation.title}
+                    </Text>
+                    <Text style={[Typography.caption, { color: colors.textMuted }]} numberOfLines={1}>
+                      {modeLabel} · {relativeTime(conversation.updatedAt)}
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={colors.textMuted} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
     </Screen>
   );
 }
 
-const HERO_HEIGHT = 248;
-
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  page: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    width: '100%',
+  },
+  pageWide: {
+    paddingTop: Spacing.lg,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.lg,
   },
-  topLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  avatar: { width: 40, height: 40, borderRadius: Radius.full },
-  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  greeting: { marginBottom: Spacing.lg, gap: 4 },
-  hello: { fontSize: 28, fontWeight: '600', letterSpacing: -0.5 },
-  hero: { flexDirection: 'row', gap: Spacing.md, height: HERO_HEIGHT, marginBottom: Spacing.xl },
-  heroLeft: { flex: 1 },
-  heroRight: { flex: 1, gap: Spacing.md },
-  heroSmall: { flex: 1 },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+  },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  greeting: {
+    marginBottom: Spacing.lg,
+    gap: 6,
+  },
+  hello: {
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    lineHeight: 36,
+  },
+  ctaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    marginBottom: Spacing.lg,
+  },
+  ctaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaCopy: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  ctaArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personaSection: {
+    marginBottom: Spacing.lg,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  recentList: { gap: Spacing.sm },
+  recentList: {
+    gap: Spacing.sm,
+  },
   recentRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -205,18 +305,35 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 64,
   },
   recentIcon: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recentText: { flex: 1, gap: 2 },
-  emptyRow: {
-    padding: Spacing.lg,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+  recentText: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xl,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  emptyButton: {
+    marginTop: Spacing.sm,
+    minWidth: 160,
   },
 });

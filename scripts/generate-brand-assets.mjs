@@ -18,12 +18,19 @@ const AMBER = '#F6D88A';
 /** Feather-style zap, 24×24 viewBox. */
 const ZAP_PATH = 'M13 2L3 14h9l-1 8 10-12h-9l1-8z';
 
-function markGroup({ ink = INK, zap = WHITE, scale = 14, showAccent = false }) {
+function markGroup({
+  ink = INK,
+  zap = WHITE,
+  scale = 14,
+  showAccent = false,
+  cx = 512,
+  cy = 512,
+}) {
   const accent = showAccent
     ? `<circle cx="19" cy="5" r="2.2" fill="${AMBER}" />`
     : '';
   return `
-    <g transform="translate(512, 512) scale(${scale}) translate(-12, -12)">
+    <g transform="translate(${cx}, ${cy}) scale(${scale}) translate(-12, -12)">
       <circle cx="12" cy="12" r="11.5" fill="${ink}" />
       <path d="${ZAP_PATH}" fill="${zap}" />
       ${accent}
@@ -76,7 +83,16 @@ function splashSvg() {
   return svg({
     width: 512,
     height: 512,
-    body: markGroup({ scale: 11, showAccent: true }),
+    body: markGroup({ scale: 11, showAccent: true, cx: 256, cy: 256 }),
+  });
+}
+
+/** Transparent logomark for in-app headers (small sizes). */
+function markSvg() {
+  return svg({
+    width: 128,
+    height: 128,
+    body: markGroup({ scale: 4.5, showAccent: true, cx: 64, cy: 64 }),
   });
 }
 
@@ -121,6 +137,7 @@ async function main() {
   await render(backgroundSvg(), path.join(OUT, 'android-icon-background.png'));
   await render(monochromeSvg(), path.join(OUT, 'android-icon-monochrome.png'));
   await render(splashSvg(), path.join(OUT, 'splash-icon.png'), 512);
+  await render(markSvg(), path.join(OUT, 'ragmob-mark.png'), 128);
   await render(appIconSvg(), path.join(OUT, 'favicon.png'), 192);
   await sharp(Buffer.from(wordmarkSvg())).png().toFile(path.join(OUT, 'ragmob-wordmark.png'));
   console.log('wrote', path.relative(process.cwd(), path.join(OUT, 'ragmob-wordmark.png')));

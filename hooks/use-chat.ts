@@ -1,21 +1,30 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 
+import { useNotifications } from '@/hooks/use-notifications';
 import { isApiError, streamChat } from '@/lib/api';
-import { deriveTitle, loadChat, saveChat } from '@/lib/storage/chat';
-import type { ChatMessage, ChatStatus, Conversation } from '@/types/chat';
+import { deriveTitle, loadChat, saveChat, savePreferredMode } from '@/lib/storage/chat';
+import { DEFAULT_CHAT_MODE, type ChatMessage, type ChatMode, type ChatStatus, type Conversation } from '@/types/chat';
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function newConversation(): Conversation {
+function newConversation(mode: ChatMode): Conversation {
   const now = Date.now();
-  return { id: createId(), title: 'New chat', messages: [], createdAt: now, updatedAt: now };
+  return {
+    id: createId(),
+    title: 'New chat',
+    messages: [],
+    mode,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 type ChatState = {
   conversations: Conversation[];
   activeId: string | null;
+  preferredMode: ChatMode;
   status: ChatStatus;
   error: string | null;
   draft: string;
@@ -23,7 +32,7 @@ type ChatState = {
 };
 
 type ChatAction =
-  | { type: 'HYDRATE'; conversations: Conversation[]; activeId: string | null }
+  | { type: 'HYDRATE'; conversations: Conversation[]; activeId: string | null; preferredMode: ChatMode }
   | { type: 'SET_DRAFT'; draft: string }
   | { type: 'SET_STATUS'; status: ChatStatus }
   | { type: 'SET_ERROR'; error: string | null }
@@ -33,12 +42,14 @@ type ChatAction =
   | { type: 'REMOVE_LAST_ASSISTANT' }
   | { type: 'NEW_CONVERSATION' }
   | { type: 'SELECT'; id: string }
+  | { type: 'SET_MODE'; mode: ChatMode }
   | { type: 'RENAME'; id: string; title: string }
   | { type: 'DELETE'; id: string };
 
 const initialState: ChatState = {
   conversations: [],
   activeId: null,
+  preferredMode: DEFAULT_CHAT_MODE,
   status: 'idle',
   error: null,
   draft: '',
@@ -63,14 +74,26 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case 'HYDRATE': {
       if (action.conversations.length === 0) {
-        const convo = newConversation();
-        return { ...state, conversations: [convo], activeId: convo.id, hydrated: true };
+        const convo = newConversation(action.preferredMode);
+        return {
+          ...state,
+          conversations: [convo],
+          activeId: convo.id,
+          preferredMode: action.preferredMode,
+          hydrated: true,
+        };
       }
       const activeId =
         action.activeId && action.conversations.some((c) => c.id === action.activeId)
           ? action.activeId
           : action.conversations[action.conversations.length - 1].id;
-      return { ...state, conversations: action.conversations, activeId, hydrated: true };
+      return {
+        ...state,
+        conversations: action.conversations,
+        activeId,
+        preferredMode: action.preferredMode,
+        hydrated: true,
+      };
     }
     case 'SET_DRAFT':
       return { ...state, draft: action.draft };
@@ -104,7 +127,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       if (active && active.messages.length === 0) {
         return { ...state, status: 'idle', error: null, draft: '' };
       }
-      const convo = newConversation();
+      const convo = newConversation(state.preferredMode);
       return {
         ...state,
         conversations: [...state.conversations, convo],
@@ -116,6 +139,15 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     case 'SELECT':
       return { ...state, activeId: action.id, status: 'idle', error: null, draft: '' };
+    case 'SET_MODE':
+      return {
+        ...state,
+        preferredMode: action.mode,
+        conversations: state.conversations.map((c) => {
+          if (c.id !== state.activeId || c.messages.length > 0) return c;
+          return { ...c, mode: action.mode, updatedAt: Date.now() };
+        }),
+      };
     case 'RENAME':
       return {
         ...state,
@@ -126,7 +158,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'DELETE': {
       const remaining = state.conversations.filter((c) => c.id !== action.id);
       if (remaining.length === 0) {
-        const convo = newConversation();
+        const convo = newConversation(state.preferredMode);
         return { ...state, conversations: [convo], activeId: convo.id, status: 'idle', error: null };
       }
       const activeId =
@@ -142,12 +174,15 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 export function useChat() {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const abortRef = useRef<AbortController | null>(null);
+  const { notifyChatReplyReady } = useNotifications();
+  const notifyChatReplyReadyRef = useRef(notifyChatReplyReady);
+  notifyChatReplyReadyRef.current = notifyChatReplyReady;
 
   // Hydrate persisted conversations once on mount.
   useEffect(() => {
     let active = true;
-    loadChat().then(({ conversations, activeId }) => {
-      if (active) dispatch({ type: 'HYDRATE', conversations, activeId });
+    loadChat().then(({ conversations, activeId, preferredMode }) => {
+      if (active) dispatch({ type: 'HYDRATE', conversations, activeId, preferredMode });
     });
     return () => {
       active = false;
@@ -159,15 +194,28 @@ export function useChat() {
     if (!state.hydrated) return;
     if (state.status === 'submitted' || state.status === 'streaming') return;
     const id = setTimeout(() => {
-      void saveChat({ conversations: state.conversations, activeId: state.activeId });
+      void saveChat({
+        conversations: state.conversations,
+        activeId: state.activeId,
+        preferredMode: state.preferredMode,
+      });
     }, 500);
     return () => clearTimeout(id);
-  }, [state.conversations, state.activeId, state.hydrated, state.status]);
+  }, [state.conversations, state.activeId, state.preferredMode, state.hydrated, state.status]);
 
-  const messages = useMemo(
-    () => state.conversations.find((c) => c.id === state.activeId)?.messages ?? [],
+  const activeConversation = useMemo(
+    () => state.conversations.find((c) => c.id === state.activeId) ?? null,
     [state.conversations, state.activeId],
   );
+
+  const messages = useMemo(
+    () => activeConversation?.messages ?? [],
+    [activeConversation],
+  );
+
+  const mode = activeConversation?.mode ?? state.preferredMode;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const setDraft = useCallback((draft: string) => {
     dispatch({ type: 'SET_DRAFT', draft });
@@ -184,14 +232,20 @@ export function useChat() {
 
     try {
       let started = false;
-      for await (const delta of streamChat({ message: question }, controller.signal)) {
+      let assistantContent = '';
+      for await (const delta of streamChat(
+        { message: question, mode: modeRef.current },
+        controller.signal,
+      )) {
         if (!started) {
           started = true;
           dispatch({ type: 'SET_STATUS', status: 'streaming' });
         }
+        assistantContent += delta;
         dispatch({ type: 'APPEND', id: assistantId, delta });
       }
       dispatch({ type: 'SET_STATUS', status: 'idle' });
+      void notifyChatReplyReadyRef.current(assistantContent);
     } catch (err) {
       if (controller.signal.aborted) {
         dispatch({ type: 'SET_STATUS', status: 'idle' });
@@ -232,6 +286,11 @@ export function useChat() {
     void runStream(lastUser.content);
   }, [messages, runStream]);
 
+  const setMode = useCallback((nextMode: ChatMode) => {
+    dispatch({ type: 'SET_MODE', mode: nextMode });
+    void savePreferredMode(nextMode);
+  }, []);
+
   const newChat = useCallback(() => {
     abortRef.current?.abort();
     dispatch({ type: 'NEW_CONVERSATION' });
@@ -255,12 +314,14 @@ export function useChat() {
     conversations: state.conversations,
     activeId: state.activeId,
     messages,
+    mode,
     status: state.status,
     error: state.error,
     draft: state.draft,
     hydrated: state.hydrated,
     isLoading: state.status === 'submitted' || state.status === 'streaming',
     setDraft,
+    setMode,
     send,
     stop,
     regenerate,

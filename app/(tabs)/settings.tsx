@@ -1,13 +1,18 @@
-import { useClerk, useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, Divider, ListItem, Screen } from '@/components/ui';
+import { RagmobWordmark } from '@/components/brand';
+import { Card, ListItem, Screen, SwitchRow } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
-import { useHealth } from '@/hooks/use-health';
+import { useContentWidth } from '@/hooks/use-content-width';
+import { useNotifications } from '@/hooks/use-notifications';
+import { TAB_SCREEN_EDGES, useTabScrollPadding } from '@/hooks/use-tab-scroll-padding';
 import { useTheme } from '@/hooks/use-theme';
+import { registerTokenGetter } from '@/lib/auth/token';
 
 function getInitials(name?: string | null, email?: string | null) {
   if (name) {
@@ -21,113 +26,216 @@ function getInitials(name?: string | null, email?: string | null) {
 export default function SettingsScreen() {
   const { colors } = useTheme();
   const { user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
   const router = useRouter();
-  const { data, isLoading, isError } = useHealth();
+  const [signingOut, setSigningOut] = useState(false);
+  const { containerStyle, isWide } = useContentWidth();
+  const tabScrollPadding = useTabScrollPadding();
+  const {
+    prefs,
+    hydrated,
+    nativeAvailable,
+    setEnabled,
+    setChatReplies,
+    setBackendAlerts,
+  } = useNotifications();
 
-  const online = !isError && (data?.status === 'healthy' || data?.status === 'ok');
   const email = user?.primaryEmailAddress?.emailAddress;
   const displayName = user?.fullName ?? null;
 
+  const performSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      registerTokenGetter(null);
+      await signOut();
+      router.replace('/sign-in');
+    } catch {
+      Alert.alert('Sign out failed', 'Please try again.');
+    } finally {
+      setSigningOut(false);
+    }
+  }, [router, signOut, signingOut]);
+
   const handleSignOut = () => {
-    Alert.alert('Sign out', 'Sign out of your account?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
-    ]);
+    void performSignOut();
   };
 
   return (
-    <Screen scroll padded={false} fadeIn contentContainerStyle={styles.content}>
-      <Text style={[styles.screenTitle, Typography.display, { color: colors.text }]}>Settings</Text>
+    <Screen
+      scroll
+      padded={false}
+      edges={TAB_SCREEN_EDGES}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: tabScrollPadding }]}>
+      <View style={[styles.page, containerStyle, isWide && styles.pageWide]}>
+        {/* Brand header */}
+        <View style={styles.hero}>
+          <RagmobWordmark markSize={34} />
+          <Text style={[Typography.display, styles.title, { color: colors.text }]}>Settings</Text>
+          <Text style={[Typography.body, { color: colors.textSecondary }]}>
+            Manage your account and preferences
+          </Text>
+        </View>
 
-      {/* Profile */}
-      <Card style={styles.mx} padded={false}>
-        <Pressable
-          onPress={() => router.push('/profile')}
-          style={({ pressed }) => [styles.profileInner, pressed && { opacity: 0.85 }]}>
-          <View style={styles.profileRow}>
-            {user?.hasImage ? (
-              <Image source={{ uri: user.imageUrl }} style={styles.avatar} contentFit="cover" />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.brandGlow }]}>
-                <Text style={[Typography.title, { color: colors.primary }]}>
-                  {getInitials(displayName, email)}
+        {/* Profile card */}
+        <Card style={styles.card} padded={false}>
+          <Pressable
+            onPress={() => router.push('/profile')}
+            style={({ pressed }) => [styles.profileBlock, pressed && { opacity: 0.88 }]}>
+            <View style={styles.profileRow}>
+              {user?.hasImage ? (
+                <Image source={{ uri: user.imageUrl }} style={styles.avatar} contentFit="cover" />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.lavenderSoft }]}>
+                  <Text style={[Typography.title, { color: colors.primaryDark, fontSize: 20 }]}>
+                    {getInitials(displayName, email)}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.profileText}>
+                <Text style={[Typography.heading, { color: colors.text }]} numberOfLines={1}>
+                  {displayName ?? 'Your account'}
+                </Text>
+                <Text style={[Typography.caption, { color: colors.textMuted }]} numberOfLines={1}>
+                  {email ?? 'Signed in'}
                 </Text>
               </View>
-            )}
-            <View style={styles.profileText}>
-              <Text style={[Typography.body, { color: colors.text, fontWeight: '600' }]} numberOfLines={1}>
-                {displayName ?? email ?? 'Signed in'}
-              </Text>
-              <Text style={[Typography.caption, { color: colors.textMuted }]} numberOfLines={1}>
-                {displayName ? email ?? 'Free plan' : 'Tap to edit profile'}
+              <View style={[styles.editBadge, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
+                <Feather name="chevron-right" size={18} color={colors.textMuted} />
+              </View>
+            </View>
+            <View style={[styles.manageRow, { borderTopColor: colors.border }]}>
+              <Feather name="user" size={16} color={colors.textSecondary} />
+              <Text style={[Typography.body, styles.manageLabel, { color: colors.text }]}>
+                Edit profile & password
               </Text>
             </View>
-            <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
-          </View>
-        </Pressable>
-        <Divider />
-        <ListItem label="Sign out" leftIcon="log-out" destructive isLast onPress={handleSignOut} />
-      </Card>
+          </Pressable>
+        </Card>
 
-      {/* Status */}
-      <Text style={[styles.sectionLabel, Typography.label, { color: colors.textMuted }]}>Status</Text>
-      <Card style={styles.mx} padded={false}>
-        <ListItem
-          label="Backend"
-          isLast
-          trailing={
-            <View style={styles.statusTrailing}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: isLoading ? colors.textMuted : online ? colors.success : colors.danger },
-                ]}
+        {/* Notifications */}
+        {nativeAvailable ? (
+          <>
+            <Text style={[Typography.label, styles.sectionLabel, { color: colors.textMuted }]}>
+              Notifications
+            </Text>
+            <Card style={styles.card} padded={false}>
+              <SwitchRow
+                label="Enable notifications"
+                description="Alerts when replies finish in the background"
+                leftIcon="bell"
+                value={prefs.enabled}
+                disabled={!hydrated}
+                onValueChange={(v) => void setEnabled(v)}
               />
-              <Text
-                style={[
-                  Typography.caption,
-                  { color: isLoading ? colors.textMuted : online ? colors.success : colors.danger },
-                ]}>
-                {isLoading ? 'Checking…' : online ? 'Online' : 'Offline'}
-              </Text>
-            </View>
-          }
-        />
-      </Card>
+              <SwitchRow
+                label="Chat replies"
+                description="Notify when an assistant response is ready"
+                leftIcon="message-circle"
+                value={prefs.chatReplies}
+                disabled={!hydrated || !prefs.enabled}
+                onValueChange={setChatReplies}
+              />
+              <SwitchRow
+                label="Backend alerts"
+                description="Notify when your AI server comes back online"
+                leftIcon="server"
+                value={prefs.backendAlerts}
+                disabled={!hydrated || !prefs.enabled}
+                isLast
+                onValueChange={setBackendAlerts}
+              />
+            </Card>
+          </>
+        ) : null}
 
-      {/* About */}
-      <Text style={[styles.sectionLabel, Typography.label, { color: colors.textMuted }]}>About</Text>
-      <Card style={[styles.mx, styles.aboutCard]} padded={false}>
-        <ListItem label="Version" value="1.0.0" />
-        <ListItem label="Expo SDK" value="54" />
-        <ListItem
-          label="Docs"
-          value="docs.expo.dev ↗"
-          isLast
-          onPress={() => WebBrowser.openBrowserAsync('https://docs.expo.dev')}
-        />
-      </Card>
+        {/* Account */}
+        <Text style={[Typography.label, styles.sectionLabel, { color: colors.textMuted }]}>
+          Account
+        </Text>
+        <Card style={styles.card} padded={false}>
+          <ListItem
+            label={signingOut ? 'Signing out…' : 'Sign out'}
+            leftIcon="log-out"
+            destructive
+            isLast
+            onPress={signingOut ? undefined : handleSignOut}
+          />
+        </Card>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.xxl },
-  screenTitle: { paddingHorizontal: Spacing.lg, marginTop: Spacing.lg, marginBottom: Spacing.md },
-  mx: { marginHorizontal: Spacing.md },
-  profileInner: { padding: Spacing.lg },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  page: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    width: '100%',
+  },
+  pageWide: {
+    paddingTop: Spacing.xl,
+  },
+  hero: {
+    gap: Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  title: {
+    marginTop: Spacing.sm,
+    fontSize: 32,
+    lineHeight: 38,
+  },
+  card: {
+    marginBottom: Spacing.md,
+  },
+  profileBlock: {
+    overflow: 'hidden',
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+  },
   avatar: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: Radius.full,
   },
-  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  profileText: { flex: 1, gap: 2 },
-  chevron: { fontSize: 24, fontWeight: '300' },
-  sectionLabel: { marginHorizontal: Spacing.lg, marginTop: Spacing.lg, marginBottom: Spacing.sm },
-  statusTrailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  statusDot: { width: 8, height: 8, borderRadius: Radius.full },
-  aboutCard: { marginBottom: Spacing.xxl },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileText: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  editBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  manageLabel: {
+    fontWeight: '500',
+  },
+  sectionLabel: {
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  },
 });

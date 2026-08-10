@@ -1,7 +1,6 @@
-import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -20,11 +19,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { ChatInput } from '@/components/chat/chat-input';
 import { ConversationSheet } from '@/components/chat/conversation-sheet';
+import { ModeSelector } from '@/components/chat/mode-selector';
 import { MessageActionSheet, type MessageAction } from '@/components/chat/message-action-sheet';
 import { RagmobWordmark } from '@/components/brand';
 import { Banner, ChatSkeleton, EmptyState, IconButton } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
 import { useChatContext } from '@/hooks/chat-context';
+import { useContentWidth } from '@/hooks/use-content-width';
 import { useHealth } from '@/hooks/use-health';
 import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
 import { useTheme } from '@/hooks/use-theme';
@@ -46,7 +47,9 @@ function isBackendOnline(status: string | undefined) {
 export function ChatWindow() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { containerStyle, isWide } = useContentWidth();
   const router = useRouter();
+  const { history } = useLocalSearchParams<{ history?: string }>();
   const keyboardInset = useKeyboardInset();
   const {
     conversations,
@@ -57,7 +60,9 @@ export function ChatWindow() {
     draft,
     hydrated,
     isLoading,
+    mode,
     setDraft,
+    setMode,
     send,
     stop,
     regenerate,
@@ -78,6 +83,15 @@ export function ChatWindow() {
   } = useHealth();
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
+
+  // Home → "See all" opens the history sheet with every saved conversation.
+  useFocusEffect(
+    useCallback(() => {
+      if (history !== '1') return;
+      setSheetVisible(true);
+      router.setParams({ history: undefined });
+    }, [history, router]),
+  );
 
   const backendOffline =
     !healthLoading && (healthError || !isBackendOnline(health?.status));
@@ -210,36 +224,44 @@ export function ChatWindow() {
             height: 56 + insets.top,
           },
         ]}>
-        <View style={styles.headerLeft}>
-          <RagmobWordmark markSize={28} />
-        </View>
-        <View style={styles.headerRight}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: backendOffline ? colors.danger : colors.success },
-            ]}
-          />
-          <IconButton
-            icon="message-square"
-            variant="ghost"
-            accessibilityLabel="Chat history"
-            onPress={() => setSheetVisible(true)}
-          />
-          <IconButton
-            icon="edit"
-            variant="ghost"
-            accessibilityLabel="New chat"
-            onPress={() => newChat()}
-          />
-          <IconButton
-            icon="user"
-            variant="ghost"
-            accessibilityLabel="Account"
-            onPress={() => router.push('/(tabs)/settings')}
-          />
+        <View style={[styles.headerRow, containerStyle]}>
+          <View style={styles.headerLeft}>
+            <RagmobWordmark markSize={28} />
+          </View>
+          <View style={styles.headerRight}>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: backendOffline ? colors.danger : colors.success },
+              ]}
+            />
+            <IconButton
+              icon="message-square"
+              variant="ghost"
+              accessibilityLabel="Chat history"
+              onPress={() => setSheetVisible(true)}
+            />
+            <IconButton
+              icon="edit"
+              variant="ghost"
+              accessibilityLabel="New chat"
+              onPress={() => newChat()}
+            />
+            <IconButton
+              icon="user"
+              variant="ghost"
+              accessibilityLabel="Account"
+              onPress={() => router.push('/(tabs)/settings')}
+            />
+          </View>
         </View>
       </View>
+
+      <ModeSelector
+        mode={mode}
+        onChange={setMode}
+        disabled={messages.length > 0 || isLoading}
+      />
 
       <ConversationSheet
         visible={sheetVisible}
@@ -256,7 +278,7 @@ export function ChatWindow() {
         <Banner
           tone="warning"
           message="Backend offline · Check your connection"
-          style={styles.banner}
+          style={[styles.banner, containerStyle]}
         />
       ) : null}
 
@@ -266,7 +288,7 @@ export function ChatWindow() {
           message={error}
           actionLabel="Retry"
           onAction={() => regenerate()}
-          style={styles.banner}
+          style={[styles.banner, containerStyle]}
         />
       ) : null}
 
@@ -281,6 +303,8 @@ export function ChatWindow() {
             style={styles.list}
             contentContainerStyle={[
               styles.listContent,
+              containerStyle,
+              isWide && styles.listContentWide,
               { paddingBottom: listBottomPadding },
               messages.length === 0 && styles.listEmpty,
             ]}
@@ -300,7 +324,7 @@ export function ChatWindow() {
               <EmptyState
                 icon="zap"
                 title="Ask anything"
-                subtitle="Your knowledge base is ready. Ask a question to get started."
+                subtitle="Pick a mode above, then send a message to get tailored help."
               />
             }
             ListFooterComponent={listFooter}
@@ -329,15 +353,17 @@ export function ChatWindow() {
               setComposerHeight(next);
             }
           }}>
-          <ChatInput
-            value={draft}
-            onChangeText={setDraft}
-            onSend={handleSubmit}
-            onStop={stop}
-            onFocus={handleInputFocus}
-            isLoading={isLoading}
-            disabled={backendOffline}
-          />
+          <View style={[styles.composerInner, containerStyle]}>
+            <ChatInput
+              value={draft}
+              onChangeText={setDraft}
+              onSend={handleSubmit}
+              onStop={stop}
+              onFocus={handleInputFocus}
+              isLoading={isLoading}
+              disabled={backendOffline}
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -348,24 +374,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   body: { flex: 1, position: 'relative' },
   header: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    height: 56,
     paddingHorizontal: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    width: '100%',
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexShrink: 0 },
   statusDot: { width: 8, height: 8, borderRadius: Radius.full },
-  banner: { marginHorizontal: Spacing.md, marginTop: Spacing.sm },
+  banner: { marginHorizontal: Spacing.md, marginTop: Spacing.sm, width: '100%' },
   list: { flex: 1 },
-  listContent: { padding: Spacing.md, flexGrow: 1 },
+  listContent: { padding: Spacing.md, flexGrow: 1, width: '100%' },
+  listContentWide: { alignSelf: 'center' },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },
   composerDock: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 2,
+  },
+  composerInner: {
+    width: '100%',
   },
   prompts: {
     flexDirection: 'row',

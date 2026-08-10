@@ -1,4 +1,4 @@
-import { useUser } from '@clerk/clerk-expo';
+import { useUser, type UserResource } from '@clerk/clerk-expo';
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,7 +17,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Banner, Button, Card, Divider, IconButton, KeyboardAwareScrollView, TextField } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
+import { describeClerkAuthError } from '@/lib/auth/clerk';
 import { useTheme } from '@/hooks/use-theme';
+
+function hasGoogleAccount(user: UserResource) {
+  return user.externalAccounts.some(
+    (account) => account.provider === 'google' || account.provider === 'oauth_google',
+  );
+}
 
 function getInitials(name?: string | null, email?: string | null) {
   if (name) {
@@ -58,11 +65,7 @@ export default function ProfileScreen() {
   }
 
   function describeError(err: unknown): string {
-    if (err && typeof err === 'object' && 'errors' in err) {
-      const first = (err as { errors?: { message?: string }[] }).errors?.[0];
-      if (first?.message) return first.message;
-    }
-    return err instanceof Error ? err.message : 'Something went wrong';
+    return describeClerkAuthError(err, 'Something went wrong');
   }
 
   async function handleSaveProfile() {
@@ -172,16 +175,25 @@ export default function ProfileScreen() {
       showBanner('error', 'New passwords do not match.');
       return;
     }
+
+    const settingPassword = !user.passwordEnabled;
+    if (!settingPassword && !currentPassword) {
+      showBanner('error', 'Enter your current password.');
+      return;
+    }
+
     setSavingPassword(true);
     try {
-      await user.updatePassword({
-        currentPassword: user.passwordEnabled ? currentPassword : undefined,
-        newPassword,
-      });
+      if (settingPassword) {
+        await user.updatePassword({ newPassword });
+      } else {
+        await user.updatePassword({ currentPassword, newPassword });
+      }
+      await user.reload();
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      showBanner('success', 'Password updated');
+      showBanner('success', settingPassword ? 'Password set — you can now sign in with email too' : 'Password updated');
     } catch (err) {
       showBanner('error', describeError(err));
     } finally {
@@ -192,6 +204,9 @@ export default function ProfileScreen() {
   if (!isLoaded || !user) {
     return null;
   }
+
+  const settingPassword = !user.passwordEnabled;
+  const signedInWithGoogle = hasGoogleAccount(user);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -284,9 +299,16 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Password */}
-        <Text style={[styles.sectionLabel, Typography.label, { color: colors.textMuted }]}>Password</Text>
+        <Text style={[styles.sectionLabel, Typography.label, { color: colors.textMuted }]}>
+          {settingPassword ? 'Set a password' : 'Password'}
+        </Text>
         <Card style={styles.card}>
-          {user.passwordEnabled ? (
+          {settingPassword && signedInWithGoogle ? (
+            <Text style={[Typography.caption, styles.passwordHint, { color: colors.textSecondary }]}>
+              You signed in with Google. Add a password here to also sign in with your email address.
+            </Text>
+          ) : null}
+          {!settingPassword ? (
             <TextField
               label="Current password"
               value={currentPassword}
@@ -298,7 +320,7 @@ export default function ProfileScreen() {
             />
           ) : null}
           <TextField
-            label="New password"
+            label={settingPassword ? 'Password' : 'New password'}
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry={!showPasswords}
@@ -309,21 +331,21 @@ export default function ProfileScreen() {
             autoCapitalize="none"
           />
           <TextField
-            label="Confirm new password"
+            label={settingPassword ? 'Confirm password' : 'Confirm new password'}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showPasswords}
             leftIcon="lock"
-            placeholder="Re-enter new password"
+            placeholder="Re-enter your password"
             autoCapitalize="none"
             error={confirmPassword.length > 0 && confirmPassword !== newPassword ? 'Passwords do not match' : undefined}
           />
           <Button
-            title="Update password"
+            title={settingPassword ? 'Set password' : 'Update password'}
             variant="secondary"
             onPress={handleChangePassword}
             loading={savingPassword}
-            disabled={newPassword.length === 0}
+            disabled={newPassword.length === 0 || confirmPassword.length === 0}
             fullWidth
           />
         </Card>
@@ -368,6 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: { marginBottom: Spacing.md },
+  passwordHint: { marginBottom: Spacing.md },
   sectionLabel: { marginTop: Spacing.sm, marginBottom: Spacing.sm },
   footer: { textAlign: 'center', marginTop: Spacing.md },
 });

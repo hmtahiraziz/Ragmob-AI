@@ -7,13 +7,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { NotificationController } from '@/components/notifications/notification-controller';
+import { AuthRedirect } from '@/components/auth/auth-redirect';
 import { SplashScreenController } from '@/components/splash-controller';
 import { CLERK_PUBLISHABLE_KEY } from '@/lib/env';
 import { useRegisterAuthToken } from '@/hooks/use-register-auth-token';
+import { NotificationProvider } from '@/hooks/use-notifications';
 import { ThemeModeProvider, useTheme } from '@/hooks/use-theme';
 
 export const unstable_settings = {
-  anchor: '(tabs)/chat',
+  initialRouteName: '(tabs)',
 };
 
 function AuthTokenRegistrar() {
@@ -49,6 +52,7 @@ function RootNavigator() {
 
   return (
     <ThemeProvider value={navTheme}>
+      <AuthRedirect />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -79,13 +83,16 @@ export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
       <ThemeModeProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <SafeAreaProvider>
-            <SplashScreenController />
-            <AuthTokenRegistrar />
-            <RootNavigator />
-          </SafeAreaProvider>
-        </GestureHandlerRootView>
+        <NotificationProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+              <SplashScreenController />
+              <AuthTokenRegistrar />
+              <NotificationController />
+              <RootNavigator />
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
+        </NotificationProvider>
       </ThemeModeProvider>
     </ClerkProvider>
   );

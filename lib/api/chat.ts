@@ -3,8 +3,11 @@ import { fetch } from 'expo/fetch';
 import { getAuthToken } from '@/lib/auth/token';
 import { API_URL } from '@/lib/env';
 
+import type { ChatMode } from '@/types/chat';
+
 export type ChatRequest = {
   message: string;
+  mode?: ChatMode;
 };
 
 async function readStreamError(response: Response): Promise<string> {
