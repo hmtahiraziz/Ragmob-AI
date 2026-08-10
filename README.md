@@ -1,4 +1,4 @@
-# AI Mobile Kit (`ragmob`)
+# Ragmob AI
 
 A reusable **Expo + React Native** starter for AI apps. It ships with streaming
 LLM chat wired to a Python **FastAPI RAG backend**, **Clerk** authentication with
@@ -186,21 +186,6 @@ The following are read by the **Python backend** (not the app) to verify Clerk J
 
 ---
 
-## Backend contract
-
-The app expects these FastAPI routes (base = `EXPO_PUBLIC_API_URL`):
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET`  | `/health` | Health check. Returns `{ "status": "healthy" \| "ok" }`. |
-| `POST` | `/query/stream` | Streaming chat. Body `{ "question": string }`, responds with a **plain-text** token stream. |
-| `POST` | `/query` | Non-streaming query → `{ answer, citations }`. |
-| `POST` | `/ingest` | Upload a document (multipart). |
-| `GET`  | `/documents` | List ingested documents. |
-| `DELETE` | `/documents/{id}` | Delete a document. |
-
-Authenticated requests send `Authorization: Bearer <clerk-jwt>` automatically via
-the token bridge (`lib/auth/token.ts` + `useRegisterAuthToken`).
 
 ---
 
