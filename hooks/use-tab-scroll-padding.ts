@@ -1,4 +1,4 @@
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import { useMemo } from 'react';
 import type { Edge } from 'react-native-safe-area-context';
 

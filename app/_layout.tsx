@@ -1,7 +1,6 @@
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { tokenCache } from '@clerk/clerk-expo/token-cache';
-import { ThemeProvider, type Theme } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, ThemeProvider, type Theme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';

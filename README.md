@@ -4,7 +4,7 @@ A reusable **Expo + React Native** starter for AI apps. It ships with streaming
 LLM chat wired to a Python **FastAPI RAG backend**, **Clerk** authentication with
 secure token storage, and a themed (light/dark) reusable UI kit.
 
-> Built on **Expo SDK 54** / **Expo Router v6**. Runs on iOS and Android via
+> Built on **Expo SDK 57** / **Expo Router**. Runs on iOS and Android via
 > **Expo Go** (no native build required for the email/password auth flow).
 
 ---
@@ -43,8 +43,8 @@ secure token storage, and a themed (light/dark) reusable UI kit.
 
 | Area | Choice |
 |------|--------|
-| Framework | Expo SDK 54, React Native 0.81, React 19 |
-| Navigation | Expo Router v6 (file-based, typed routes) |
+| Framework | Expo SDK 57, React Native 0.86, React 19 |
+| Navigation | Expo Router (file-based, typed routes) |
 | Auth | `@clerk/clerk-expo` v2 (Expo Go compatible) |
 | Secure storage | `expo-secure-store` |
 | Local persistence | `@react-native-async-storage/async-storage` |
