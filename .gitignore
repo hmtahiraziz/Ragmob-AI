@@ -29,10 +29,6 @@ yarn-error.*
 .DS_Store
 *.pem
 
-.env
-.env.local
-.env.development
-.env.production
 .env*.local
 !.env.example
 
@@ -51,3 +47,4 @@ app-example
 # Windows
 Thumbs.db
 Desktop.ini
+config.bat
