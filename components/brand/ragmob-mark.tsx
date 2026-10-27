@@ -19,7 +19,7 @@ export function RagmobMark({ size = 28, style, onPress }: RagmobMarkProps) {
       source={markSource}
       style={[{ width: size, height: size }, style]}
       contentFit="contain"
-      accessibilityLabel="ragmob"
+      accessibilityLabel="Ragmob"
     />
   );
 
@@ -30,7 +30,7 @@ export function RagmobMark({ size = 28, style, onPress }: RagmobMarkProps) {
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="ragmob logo"
+      accessibilityLabel="Ragmob logo"
       style={({ pressed }) => [{ opacity: pressed ? 0.82 : 1 }]}>
       {image}
     </Pressable>
@@ -43,14 +43,14 @@ type RagmobWordmarkProps = {
   onPress?: () => void;
 };
 
-/** Logomark + lowercase "ragmob" wordmark. */
+/** Logomark + "Ragmob" wordmark. */
 export function RagmobWordmark({ markSize = 28, style, onPress }: RagmobWordmarkProps) {
   const { colors } = useTheme();
 
   const content = (
     <>
       <RagmobMark size={markSize} />
-      <Text style={[Typography.heading, styles.name, { color: colors.text }]}>ragmob</Text>
+      <Text style={[Typography.heading, styles.name, { color: colors.text }]}>Ragmob</Text>
     </>
   );
 
@@ -63,7 +63,7 @@ export function RagmobWordmark({ markSize = 28, style, onPress }: RagmobWordmark
       onPress={onPress}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel="ragmob logo"
+      accessibilityLabel="Ragmob logo"
       style={({ pressed }) => [styles.wordmark, style, { opacity: pressed ? 0.82 : 1 }]}>
       {content}
     </Pressable>

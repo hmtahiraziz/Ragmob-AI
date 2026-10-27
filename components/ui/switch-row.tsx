@@ -29,12 +29,7 @@ export function SwitchRow({
   const { colors } = useTheme();
 
   return (
-    <View
-      style={[
-        styles.row,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-        style,
-      ]}>
+    <View style={[styles.row, style]}>
       {leftIcon ? (
         <Feather name={leftIcon} size={18} color={disabled ? colors.textMuted : colors.textSecondary} />
       ) : null}

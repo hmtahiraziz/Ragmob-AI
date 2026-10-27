@@ -1,28 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Dimensions, Keyboard, Platform, type KeyboardEvent } from 'react-native';
+import { Keyboard, Platform, type KeyboardEvent } from 'react-native';
 
 /**
- * Returns how many px to lift bottom-docked UI (composer) above the keyboard.
- * Uses screenY on Android edge-to-edge for accurate overlap measurement.
+ * Extra bottom lift for docked composers when soft-input mode is `pan`.
+ * (Chat uses KeyboardStickyView instead; this remains for other screens.)
  */
 export function useKeyboardInset() {
   const [inset, setInset] = useState(0);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const onShow = (event: KeyboardEvent) => {
+      setVisible(true);
       if (Platform.OS === 'ios') {
         Keyboard.scheduleLayoutAnimation(event);
       }
-      const { height, screenY } = event.endCoordinates;
-      const windowHeight = Dimensions.get('window').height;
-      const overlap = Platform.OS === 'android' ? Math.max(height, windowHeight - screenY) : height;
-      setInset(Math.max(0, overlap));
+      setInset(Math.max(0, event.endCoordinates.height));
     };
 
-    const onHide = () => setInset(0);
+    const onHide = () => {
+      setVisible(false);
+      setInset(0);
+    };
 
     const showSub = Keyboard.addListener(showEvent, onShow);
     const hideSub = Keyboard.addListener(hideEvent, onHide);
@@ -32,5 +34,5 @@ export function useKeyboardInset() {
     };
   }, []);
 
-  return inset;
+  return { inset, visible };
 }
