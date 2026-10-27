@@ -88,8 +88,6 @@ function PersonaTile({
         styles.tile,
         {
           backgroundColor: tileBg,
-          borderColor: selected ? colors.ink : colors.border,
-          borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
           opacity: disabled ? 0.65 : pressed ? 0.94 : 1,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
@@ -133,8 +131,7 @@ function PersonaStripPill({
       style={({ pressed }) => [
         styles.stripPill,
         {
-          backgroundColor: selected ? colors.ink : colors.surface,
-          borderColor: selected ? colors.ink : colors.borderStrong,
+          backgroundColor: selected ? colors.ink : colors.surface2,
           opacity: pressed ? 0.92 : 1,
           transform: [{ scale: pressed ? 0.98 : 1 }],
         },
@@ -167,7 +164,7 @@ function LockedPersonaBar({ mode }: { mode: ChatMode }) {
     <View
       style={[
         styles.lockedBar,
-        { backgroundColor: colors.surface2, borderColor: colors.border },
+        { backgroundColor: colors.surface2 },
       ]}>
       <View style={[styles.iconBadge, { backgroundColor: accent.iconBg }]}>
         <Feather name={PERSONA_ICONS[mode]} size={18} color={accent.iconColor} />
@@ -219,7 +216,7 @@ export function PersonaPicker({
 
   if (variant === 'strip') {
     return (
-      <View style={[styles.wrap, style]}>
+      <View style={[styles.wrap, styles.stripWrap, style]}>
         {showHeading ? (
           <Text style={[Typography.label, styles.stripHeading, { color: colors.textMuted }]}>
             Persona
@@ -229,8 +226,9 @@ export function PersonaPicker({
           horizontal
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
-          snapToAlignment="start"
+          nestedScrollEnabled
           keyboardShouldPersistTaps="handled"
+          style={styles.stripScroll}
           contentContainerStyle={styles.stripContent}>
           {CHAT_MODES.map((item) => (
             <PersonaStripPill
@@ -287,42 +285,49 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     overflow: 'visible',
   },
+  stripWrap: {
+    gap: Spacing.xs,
+  },
   headingBlock: {
     gap: 4,
     marginBottom: 2,
   },
   stripHeading: {
     marginBottom: 2,
+    marginLeft: 2,
+  },
+  stripScroll: {
+    flexGrow: 0,
   },
   stripContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingRight: Spacing.md,
+    gap: Spacing.xs,
+    paddingRight: Spacing.lg,
+    paddingVertical: 2,
   },
   stripPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingLeft: Spacing.sm,
-    paddingRight: Spacing.md,
-    paddingVertical: Spacing.sm,
-    minHeight: 44,
+    gap: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingVertical: 6,
+    minHeight: 36,
     borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
+    flexShrink: 0,
   },
   stripIcon: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stripLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     letterSpacing: -0.2,
-    flexShrink: 0,
   },
   grid: {
     gap: Spacing.sm,
@@ -363,7 +368,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     padding: Spacing.md,
     borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   lockedCopy: {
     flex: 1,

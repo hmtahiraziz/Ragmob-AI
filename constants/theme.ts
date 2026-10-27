@@ -2,8 +2,8 @@ import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
 /**
  * ragmob design system — warm light palette.
- * Lavender + amber + ink-black on a warm off-white canvas. Flat (no shadows),
- * hairline borders only on white cards.
+ * Lavender + amber + ink-black on a warm off-white canvas.
+ * Flat surfaces — no shadows or decorative borders (avoids scroll jitter).
  */
 export const Palette = {
   lavender: '#B7AEF0',
@@ -160,10 +160,10 @@ export const Typography = {
 } as const;
 
 /**
- * Flat design — no drop shadows anywhere. Kept as no-op objects so existing
+ * Flat design — no drop shadows. Kept as no-op objects so existing
  * `...shadows.card` spreads remain valid without per-component edits.
  */
-const flat: ViewStyle = { elevation: 0 };
+const flat: ViewStyle = { elevation: 0, shadowOpacity: 0, shadowRadius: 0 };
 export const Shadows = {
   card: flat,
   glow: flat,

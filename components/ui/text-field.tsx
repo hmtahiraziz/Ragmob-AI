@@ -70,6 +70,8 @@ const webInputStyle = Platform.OS === 'web'
 
 const webWrapperStyle = Platform.OS === 'web' ? ({ overflow: 'hidden' } as const) : null;
 
+export type TextFieldHandle = { focus: () => void };
+
 type TextFieldProps = TextInputProps & {
   label?: string;
   /** Optional node rendered at the right of the label row (e.g. "Forgot password?"). */
@@ -80,6 +82,8 @@ type TextFieldProps = TextInputProps & {
   rightIcon?: FeatherIconName;
   onRightIconPress?: () => void;
   containerStyle?: StyleProp<ViewStyle>;
+  /** Focus handle for keyboard “next” chaining (avoids TextInput ref conflicts). */
+  inputRef?: React.RefObject<TextFieldHandle | null>;
 };
 
 export function TextField({
@@ -94,19 +98,34 @@ export function TextField({
   style,
   onFocus,
   onBlur,
+  inputRef,
   ...rest
 }: TextFieldProps) {
-  const { colors, shadows } = useTheme();
+  const { colors } = useTheme();
   const keyboardAwareScroll = useKeyboardAwareScroll();
   const [focused, setFocused] = useState(false);
   const fieldRef = useRef<View>(null);
+  const nativeInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (!inputRef) return;
+    inputRef.current = {
+      focus: () => nativeInputRef.current?.focus(),
+    };
+    return () => {
+      inputRef.current = null;
+    };
+  }, [inputRef]);
 
   useEffect(() => {
     injectWebInputStyles();
   }, []);
 
-  const borderColor = error ? colors.danger : focused ? colors.ink : colors.borderStrong;
-  const wrapperShadow = focused && !error ? shadows.focus : undefined;
+  const backgroundColor = error
+    ? 'rgba(220,38,38,0.08)'
+    : focused
+      ? colors.surface3
+      : colors.surface2;
 
   return (
     <View ref={fieldRef} style={[styles.container, containerStyle]}>
@@ -125,15 +144,14 @@ export function TextField({
           styles.wrapper,
           webWrapperStyle,
           {
-            backgroundColor: colors.surface,
-            borderColor,
-            ...wrapperShadow,
+            backgroundColor,
           },
         ]}>
         {leftIcon ? (
           <Feather name={leftIcon} size={18} color={colors.textMuted} style={styles.leftIcon} />
         ) : null}
         <TextInput
+          ref={nativeInputRef}
           {...(Platform.OS === 'web' ? { className: WEB_INPUT_CLASS } : null)}
           placeholderTextColor={colors.textMuted}
           selectionColor={colors.ink}
@@ -152,7 +170,14 @@ export function TextField({
           {...rest}
         />
         {rightIcon ? (
-          <Pressable onPress={onRightIconPress} hitSlop={8} style={styles.rightIcon}>
+          <Pressable
+            onPress={onRightIconPress}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              rightIcon === 'eye' || rightIcon === 'eye-off' ? 'Toggle password visibility' : undefined
+            }
+            style={styles.rightIcon}>
             <Feather name={rightIcon} size={18} color={colors.textMuted} />
           </Pressable>
         ) : null}
@@ -179,7 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     height: 48,
   },

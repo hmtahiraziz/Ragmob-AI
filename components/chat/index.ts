@@ -4,5 +4,7 @@ export { ConversationSheet } from './conversation-sheet';
 export { MarkdownMessage } from './markdown-message';
 export { MessageActionSheet } from './message-action-sheet';
 export { MessageBubble } from './message-bubble';
+export { ReportMessageSheet, REPORT_REASONS } from './report-message-sheet';
 export { PersonaPicker } from './persona-picker';
 export { ModeSelector } from './mode-selector';
+export { VoiceRecordingBar } from './voice-recording-bar';

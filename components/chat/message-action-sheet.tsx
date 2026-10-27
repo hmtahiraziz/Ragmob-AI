@@ -32,7 +32,6 @@ export function MessageActionSheet({ visible, actions, onClose }: MessageActionS
             styles.sheet,
             {
               backgroundColor: colors.surface,
-              borderColor: colors.border,
               marginBottom: insets.bottom + Spacing.md,
             },
           ]}>
@@ -45,7 +44,6 @@ export function MessageActionSheet({ visible, actions, onClose }: MessageActionS
               }}
               style={({ pressed }) => [
                 styles.row,
-                index < actions.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
                 pressed && { backgroundColor: colors.surface2 },
               ]}>
               <Feather
@@ -77,7 +75,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   row: {

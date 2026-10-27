@@ -52,14 +52,14 @@ export function Button({
   const isDisabled = disabled || loading;
   const scale = useRef(new Animated.Value(1)).current;
 
-  // Flat fills, full-round pills, hairline border on the outline variant only.
-  const palette: Record<Variant, { bg: string; fg: string; border: string }> = {
-    primary: { bg: colors.ink, fg: colors.onInk, border: 'transparent' },
-    secondary: { bg: colors.surface, fg: colors.text, border: colors.borderStrong },
-    ghost: { bg: 'transparent', fg: colors.text, border: 'transparent' },
-    danger: { bg: 'rgba(220,38,38,0.10)', fg: colors.danger, border: 'rgba(220,38,38,0.28)' },
+  // Flat fills only — no borders (avoids scroll/layout jitter).
+  const palette: Record<Variant, { bg: string; fg: string }> = {
+    primary: { bg: colors.ink, fg: colors.onInk },
+    secondary: { bg: colors.surface2, fg: colors.text },
+    ghost: { bg: 'transparent', fg: colors.text },
+    danger: { bg: 'rgba(220,38,38,0.10)', fg: colors.danger },
   };
-  const { bg, fg, border } = palette[variant];
+  const { bg, fg } = palette[variant];
 
   const handlePressIn = () => {
     if (isDisabled) return;
@@ -93,7 +93,6 @@ export function Button({
             height: sizing.height,
             paddingHorizontal: sizing.paddingHorizontal,
             backgroundColor: bg,
-            borderColor: border,
           },
           fullWidth && styles.fullWidth,
           isDisabled && styles.disabled,
@@ -116,7 +115,6 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

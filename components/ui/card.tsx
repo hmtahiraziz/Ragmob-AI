@@ -19,15 +19,13 @@ type CardProps = ViewProps & {
 };
 
 export function Card({ padded = true, onPress, style, children, ...rest }: CardProps) {
-  const { colors, shadows } = useTheme();
+  const { colors } = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
 
   const cardStyle = [
     styles.card,
-    shadows.card,
     {
       backgroundColor: colors.card,
-      borderColor: colors.border,
     },
     padded && styles.padded,
     style,
@@ -60,7 +58,6 @@ export function Card({ padded = true, onPress, style, children, ...rest }: CardP
 const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   padded: { padding: Spacing.lg },
 });
