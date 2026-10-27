@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MarkdownMessage } from '@/components/chat/markdown-message';
+import { Spinner } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { ChatMessage } from '@/types/chat';
-import { Spinner } from '@/components/ui';
 
 type MessageBubbleProps = {
   message: ChatMessage;
@@ -22,7 +23,9 @@ function formatTime(ts: number) {
 export function MessageBubble({ message, isStreaming, onLongPress }: MessageBubbleProps) {
   const { colors } = useTheme();
   const isUser = message.role === 'user';
-  const canLongPress = !!onLongPress && !isStreaming && !!message.content;
+  const hasImage = Boolean(message.image?.uri);
+  const canLongPress =
+    !!onLongPress && !isStreaming && (!!message.content || hasImage);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
 
@@ -61,7 +64,24 @@ export function MessageBubble({ message, isStreaming, onLongPress }: MessageBubb
           delayLongPress={300}
           style={({ pressed }) => [styles.pressable, pressed && canLongPress && styles.pressed]}>
           <View style={[styles.userBubble, { backgroundColor: colors.userBubble }]}>
-            <Text style={[Typography.body, { color: colors.onPrimary }]}>{message.content}</Text>
+            {hasImage ? (
+              <Image
+                source={{ uri: message.image!.uri }}
+                style={styles.userImage}
+                contentFit="cover"
+                accessibilityLabel="Attached image"
+              />
+            ) : null}
+            {message.content ? (
+              <Text
+                style={[
+                  Typography.body,
+                  { color: colors.onPrimary },
+                  hasImage && styles.userCaption,
+                ]}>
+                {message.content}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
         <Text style={[Typography.caption, styles.timestampRight, { color: colors.textMuted }]}>
@@ -77,29 +97,17 @@ export function MessageBubble({ message, isStreaming, onLongPress }: MessageBubb
         <View style={[styles.cooperLogo, { backgroundColor: colors.ink }]}>
           <Feather name="zap" size={11} color={colors.onInk} />
         </View>
-        <Text style={[Typography.caption, { color: colors.textSecondary, fontWeight: '600' }]}>ragmob</Text>
+        <Text style={[Typography.caption, { color: colors.textSecondary, fontWeight: '600' }]}>Ragmob</Text>
       </View>
 
       <Pressable
         onLongPress={canLongPress ? () => onLongPress?.(message) : undefined}
         delayLongPress={300}
         style={({ pressed }) => [styles.pressable, pressed && canLongPress && styles.pressed]}>
-        <View style={[styles.assistantCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.assistantCard, { backgroundColor: colors.surface }]}>
           {assistantContent}
         </View>
       </Pressable>
-
-      {message.citations && message.citations.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.citations}>
-          {message.citations.map((c, i) => (
-            <View
-              key={`${c.source}-${i}`}
-              style={[styles.citation, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
-              <Text style={[Typography.caption, { color: colors.textSecondary }]}>↗ {c.source}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
 
       <Text style={[Typography.caption, styles.timestampLeft, { color: colors.textMuted }]}>
         {formatTime(message.createdAt)}
@@ -163,11 +171,11 @@ function TypingDots() {
 }
 
 const styles = StyleSheet.create({
-  row: { marginBottom: Spacing.lg, maxWidth: '100%' },
-  rowUser: { alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '80%' },
-  rowAssistant: { alignSelf: 'flex-start', alignItems: 'flex-start', maxWidth: '88%' },
+  row: { marginBottom: Spacing.md, maxWidth: '100%' },
+  rowUser: { alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%' },
+  rowAssistant: { alignSelf: 'flex-start', alignItems: 'flex-start', maxWidth: '90%' },
   pressable: { maxWidth: '100%' },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.92 },
   meAvatar: {
     width: 24,
     height: 24,
@@ -179,9 +187,21 @@ const styles = StyleSheet.create({
   meText: { fontSize: 10, fontWeight: '700' },
   userBubble: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: Radius.card,
     borderBottomRightRadius: 6,
+    overflow: 'hidden',
+    gap: Spacing.sm,
+  },
+  userImage: {
+    width: 200,
+    height: 200,
+    maxWidth: '100%',
+    borderRadius: Radius.md,
+    alignSelf: 'stretch',
+  },
+  userCaption: {
+    marginTop: 0,
   },
   assistantLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xs },
   cooperLogo: {
@@ -195,19 +215,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderRadius: Radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
     minWidth: 64,
   },
   timestampRight: { marginTop: Spacing.xs },
-  timestampLeft: { marginTop: Spacing.xs },
-  citations: { marginTop: Spacing.sm, maxHeight: 34 },
-  citation: {
-    borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    marginRight: Spacing.xs,
-  },
+  timestampLeft: { marginTop: 2 },
   dots: { flexDirection: 'row', gap: 4, paddingVertical: 4 },
   dot: { width: 6, height: 6, borderRadius: Radius.full },
 });

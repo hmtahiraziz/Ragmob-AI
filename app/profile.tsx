@@ -1,29 +1,24 @@
-import { useUser, type UserResource } from '@clerk/clerk-expo';
+import { useUser } from '@clerk/expo';
+import type { UserResource } from '@clerk/expo/types';
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActionSheetIOS,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Banner, Button, Card, Divider, IconButton, KeyboardAwareScrollView, TextField } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
-import { describeClerkAuthError } from '@/lib/auth/clerk';
+import { useAppFeedback } from '@/hooks/use-app-feedback';
 import { useTheme } from '@/hooks/use-theme';
+import { describeClerkProfileError } from '@/lib/auth/clerk';
+import { getProfileDisplayName, getProfileNames, updateProfileNames } from '@/lib/auth/profile-name';
+import { pickAndPrepareAvatar } from '@/lib/media';
+
+const NAME_MAX = 40;
 
 function hasGoogleAccount(user: UserResource) {
-  return user.externalAccounts.some(
-    (account) => account.provider === 'google' || account.provider === 'oauth_google',
-  );
+  return user.externalAccounts.some((account) => account.provider === 'google');
 }
 
 function getInitials(name?: string | null, email?: string | null) {
@@ -35,14 +30,24 @@ function getInitials(name?: string | null, email?: string | null) {
   return '?';
 }
 
-export default function ProfileScreen() {
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX);
+}
+
+type ProfileEditorProps = {
+  user: UserResource;
+};
+
+function ProfileEditor({ user }: ProfileEditorProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isLoaded } = useUser();
+  const { showDialog, showToast } = useAppFeedback();
 
-  const [firstName, setFirstName] = useState(user?.firstName ?? '');
-  const [lastName, setLastName] = useState(user?.lastName ?? '');
+  const initialNames = getProfileNames(user);
+  // Mounted only after `user` exists (see ProfileScreen), so this seed is correct.
+  const [firstName, setFirstName] = useState(initialNames.firstName);
+  const [lastName, setLastName] = useState(initialNames.lastName);
   const [savingProfile, setSavingProfile] = useState(false);
   const [imageStatus, setImageStatus] = useState<'idle' | 'uploading' | 'removing'>('idle');
 
@@ -53,132 +58,155 @@ export default function ProfileScreen() {
   const [showPasswords, setShowPasswords] = useState(false);
 
   const [banner, setBanner] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null);
 
-  const email = user?.primaryEmailAddress?.emailAddress;
-  const displayName = user?.fullName ?? null;
+  const email = user.primaryEmailAddress?.emailAddress;
+  const displayName = getProfileDisplayName(user);
 
-  const profileDirty =
-    firstName !== (user?.firstName ?? '') || lastName !== (user?.lastName ?? '');
+  const saved = getProfileNames(user);
+  const nextFirst = normalizeName(firstName);
+  const nextLast = normalizeName(lastName);
+  const profileDirty = nextFirst !== saved.firstName || nextLast !== saved.lastName;
 
-  function showBanner(tone: 'success' | 'error', message: string) {
-    setBanner({ tone, message });
-  }
-
-  function describeError(err: unknown): string {
-    return describeClerkAuthError(err, 'Something went wrong');
+  function clearAlerts() {
+    setBanner(null);
+    setProfileError(null);
+    setPasswordError(null);
+    setCurrentPasswordError(null);
   }
 
   async function handleSaveProfile() {
-    if (!user) return;
-    setBanner(null);
+    clearAlerts();
+
+    const first = normalizeName(firstName);
+    const last = normalizeName(lastName);
+
+    if (!first) {
+      const message = 'Enter a first name.';
+      setProfileError(message);
+      setBanner({ tone: 'error', message });
+      return;
+    }
+
+    if (first === saved.firstName && last === saved.lastName) {
+      setFirstName(first);
+      setLastName(last);
+      return;
+    }
+
     setSavingProfile(true);
     try {
-      await user.update({ firstName: firstName.trim(), lastName: lastName.trim() });
-      showBanner('success', 'Profile updated');
+      const updated = await updateProfileNames(user, first, last);
+      setFirstName(updated.firstName);
+      setLastName(updated.lastName);
+      showToast({ message: 'Profile updated', tone: 'success' });
     } catch (err) {
-      showBanner('error', describeError(err));
+      const message = describeClerkProfileError(err, 'Could not update profile. Please try again.');
+      setProfileError(message);
+      setBanner({ tone: 'error', message });
     } finally {
       setSavingProfile(false);
     }
   }
 
   async function pickAndUploadImage() {
-    if (!user) return;
-    setBanner(null);
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showBanner('error', 'Photo library permission is required to set an avatar.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.6,
-      base64: true,
-    });
-    const asset = result.assets?.[0];
-    if (result.canceled || !asset?.base64) return;
-
-    setImageStatus('uploading');
+    clearAlerts();
     try {
-      const mime = asset.mimeType ?? 'image/jpeg';
-      await user.setProfileImage({ file: `data:${mime};base64,${asset.base64}` });
+      const prepared = await pickAndPrepareAvatar();
+      if (!prepared) return;
+
+      setImageStatus('uploading');
+      await user.setProfileImage({ file: prepared.dataUrl });
       await user.reload();
-      showBanner('success', 'Avatar updated');
+      showToast({ message: 'Avatar updated', tone: 'success' });
     } catch (err) {
-      showBanner('error', describeError(err));
+      const message = describeClerkProfileError(err, 'Could not update photo. Please try again.');
+      showToast({ message, tone: 'error' });
     } finally {
       setImageStatus('idle');
     }
   }
 
   async function removeImage() {
-    if (!user) return;
-    setBanner(null);
+    clearAlerts();
     setImageStatus('removing');
     try {
       await user.setProfileImage({ file: null });
       await user.reload();
-      showBanner('success', 'Avatar removed');
+      showToast({ message: 'Avatar removed', tone: 'success' });
     } catch (err) {
-      showBanner('error', describeError(err));
+      showToast({
+        message: describeClerkProfileError(err, 'Could not remove photo. Please try again.'),
+        tone: 'error',
+      });
     } finally {
       setImageStatus('idle');
     }
   }
 
   function confirmRemoveImage() {
-    Alert.alert('Remove avatar', 'Are you sure you want to remove your profile photo?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => void removeImage() },
-    ]);
+    showDialog({
+      title: 'Remove avatar?',
+      message: 'Your profile photo will be removed from your account.',
+      actions: [
+        { label: 'Cancel', variant: 'ghost' },
+        {
+          label: 'Remove',
+          variant: 'danger',
+          onPress: () => void removeImage(),
+        },
+      ],
+    });
   }
 
   function handleAvatarPress() {
     if (imageStatus !== 'idle') return;
-    // No image yet → go straight to the picker.
-    if (!user?.hasImage) {
+    if (!user.hasImage) {
       void pickAndUploadImage();
       return;
     }
-    // Existing image → offer change / remove.
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
+    showDialog({
+      title: 'Profile photo',
+      message: 'Photos are resized and metadata (EXIF) is removed before upload.',
+      actions: [
         {
-          options: ['Change photo', 'Remove photo', 'Cancel'],
-          destructiveButtonIndex: 1,
-          cancelButtonIndex: 2,
+          label: 'Change photo',
+          variant: 'primary',
+          onPress: () => void pickAndUploadImage(),
         },
-        (index) => {
-          if (index === 0) void pickAndUploadImage();
-          else if (index === 1) confirmRemoveImage();
+        {
+          label: 'Remove photo',
+          variant: 'danger',
+          onPress: confirmRemoveImage,
         },
-      );
-      return;
-    }
-    Alert.alert('Profile photo', undefined, [
-      { text: 'Change photo', onPress: () => void pickAndUploadImage() },
-      { text: 'Remove photo', style: 'destructive', onPress: confirmRemoveImage },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+        { label: 'Cancel', variant: 'ghost' },
+      ],
+    });
   }
 
   async function handleChangePassword() {
-    if (!user) return;
-    setBanner(null);
+    clearAlerts();
+
     if (newPassword.length < 8) {
-      showBanner('error', 'New password must be at least 8 characters.');
+      const message = 'Password must be at least 8 characters.';
+      setPasswordError(message);
+      setBanner({ tone: 'error', message });
       return;
     }
     if (newPassword !== confirmPassword) {
-      showBanner('error', 'New passwords do not match.');
+      const message = 'New passwords do not match.';
+      setPasswordError(message);
+      setBanner({ tone: 'error', message });
       return;
     }
 
     const settingPassword = !user.passwordEnabled;
     if (!settingPassword && !currentPassword) {
-      showBanner('error', 'Enter your current password.');
+      const message = 'Enter your current password.';
+      setCurrentPasswordError(message);
+      setBanner({ tone: 'error', message });
       return;
     }
 
@@ -193,24 +221,33 @@ export default function ProfileScreen() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      showBanner('success', settingPassword ? 'Password set — you can now sign in with email too' : 'Password updated');
+      const ok = settingPassword
+        ? 'Password set — you can now sign in with email too'
+        : 'Password updated';
+      showToast({ message: ok, tone: 'success' });
     } catch (err) {
-      showBanner('error', describeError(err));
+      const message = describeClerkProfileError(err, 'Could not update password. Please try again.');
+      if (/current password/i.test(message)) {
+        setCurrentPasswordError(message);
+      } else {
+        setPasswordError(message);
+      }
+      setBanner({ tone: 'error', message });
     } finally {
       setSavingPassword(false);
     }
   }
 
-  if (!isLoaded || !user) {
-    return null;
-  }
-
   const settingPassword = !user.passwordEnabled;
   const signedInWithGoogle = hasGoogleAccount(user);
+  const confirmMismatch =
+    confirmPassword.length > 0 && confirmPassword !== newPassword
+      ? 'Passwords do not match'
+      : undefined;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <IconButton icon="arrow-left" variant="ghost" accessibilityLabel="Back" onPress={() => router.back()} />
         <Text style={[Typography.heading, { color: colors.text }]}>Edit profile</Text>
         <View style={styles.headerSpacer} />
@@ -221,15 +258,15 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.body}
         bottomInset={insets.bottom + Spacing.xxl}
         focusGap={32}>
-          {banner ? (
-            <Banner tone={banner.tone} message={banner.message} onDismiss={() => setBanner(null)} style={styles.banner} />
-          ) : null}
+        {banner ? (
+          <Banner tone={banner.tone} message={banner.message} onDismiss={() => setBanner(null)} style={styles.banner} />
+        ) : null}
 
-        {/* Avatar */}
         <View style={styles.avatarSection}>
           <Pressable
             onPress={handleAvatarPress}
             disabled={imageStatus !== 'idle'}
+            accessibilityLabel="Change profile photo"
             style={[styles.avatarWrap, imageStatus !== 'idle' && styles.avatarBusy]}>
             {user.hasImage ? (
               <Image
@@ -241,46 +278,52 @@ export default function ProfileScreen() {
               />
             ) : (
               <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.brandGlow }]}>
-                <Text style={[Typography.title, { color: colors.primary }]}>
+                <Text style={[Typography.title, { color: colors.primaryDark }]}>
                   {getInitials(displayName, email)}
                 </Text>
               </View>
             )}
-            <View style={[styles.avatarBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
-              <Feather name={user.hasImage ? 'edit-2' : 'camera'} size={13} color={colors.onPrimary} />
+            <View style={[styles.avatarBadge, { backgroundColor: colors.ink }]}>
+              <Feather name={user.hasImage ? 'edit-2' : 'camera'} size={13} color={colors.onInk} />
             </View>
           </Pressable>
-          <Text style={[Typography.caption, { color: colors.textMuted }]}>
+          <Text style={[Typography.caption, { color: colors.textMuted, textAlign: 'center' }]}>
             {imageStatus === 'uploading'
               ? 'Uploading…'
               : imageStatus === 'removing'
                 ? 'Removing…'
-                : user.hasImage
-                  ? 'Tap to change or remove'
-                  : 'Tap to add a photo'}
+                : 'Tap photo to change'}
           </Text>
-          {user.hasImage && imageStatus === 'idle' ? (
-            <Button title="Remove photo" variant="ghost" size="sm" onPress={confirmRemoveImage} />
-          ) : null}
         </View>
 
-        {/* Identity */}
         <Card style={styles.card}>
           <TextField
             label="First name"
             value={firstName}
-            onChangeText={setFirstName}
+            onChangeText={(v) => {
+              setFirstName(v.slice(0, NAME_MAX));
+              if (profileError) setProfileError(null);
+              if (banner?.tone === 'error') setBanner(null);
+            }}
             placeholder="Jane"
             leftIcon="user"
             autoCapitalize="words"
+            maxLength={NAME_MAX}
+            hint={`Up to ${NAME_MAX} characters`}
+            error={profileError ?? undefined}
           />
           <TextField
             label="Last name"
             value={lastName}
-            onChangeText={setLastName}
+            onChangeText={(v) => {
+              setLastName(v.slice(0, NAME_MAX));
+              if (profileError) setProfileError(null);
+              if (banner?.tone === 'error') setBanner(null);
+            }}
             placeholder="Doe"
             leftIcon="user"
             autoCapitalize="words"
+            maxLength={NAME_MAX}
           />
           <TextField
             label="Email"
@@ -291,14 +334,13 @@ export default function ProfileScreen() {
           />
           <Button
             title="Save changes"
-            onPress={handleSaveProfile}
+            onPress={() => void handleSaveProfile()}
             loading={savingProfile}
-            disabled={!profileDirty}
+            disabled={!profileDirty || savingProfile}
             fullWidth
           />
         </Card>
 
-        {/* Password */}
         <Text style={[styles.sectionLabel, Typography.label, { color: colors.textMuted }]}>
           {settingPassword ? 'Set a password' : 'Password'}
         </Text>
@@ -312,51 +354,75 @@ export default function ProfileScreen() {
             <TextField
               label="Current password"
               value={currentPassword}
-              onChangeText={setCurrentPassword}
+              onChangeText={(v) => {
+                setCurrentPassword(v);
+                if (currentPasswordError) setCurrentPasswordError(null);
+                if (banner?.tone === 'error') setBanner(null);
+              }}
               secureTextEntry={!showPasswords}
               leftIcon="lock"
               placeholder="••••••••"
               autoCapitalize="none"
+              error={currentPasswordError ?? undefined}
             />
           ) : null}
           <TextField
             label={settingPassword ? 'Password' : 'New password'}
             value={newPassword}
-            onChangeText={setNewPassword}
+            onChangeText={(v) => {
+              setNewPassword(v);
+              if (passwordError) setPasswordError(null);
+              if (banner?.tone === 'error') setBanner(null);
+            }}
             secureTextEntry={!showPasswords}
             leftIcon="lock"
             rightIcon={showPasswords ? 'eye-off' : 'eye'}
             onRightIconPress={() => setShowPasswords((v) => !v)}
             placeholder="At least 8 characters"
             autoCapitalize="none"
+            error={passwordError && !confirmMismatch ? passwordError : undefined}
           />
           <TextField
             label={settingPassword ? 'Confirm password' : 'Confirm new password'}
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(v) => {
+              setConfirmPassword(v);
+              if (passwordError) setPasswordError(null);
+              if (banner?.tone === 'error') setBanner(null);
+            }}
             secureTextEntry={!showPasswords}
             leftIcon="lock"
             placeholder="Re-enter your password"
             autoCapitalize="none"
-            error={confirmPassword.length > 0 && confirmPassword !== newPassword ? 'Passwords do not match' : undefined}
+            error={confirmMismatch ?? (passwordError && /match/i.test(passwordError) ? passwordError : undefined)}
           />
           <Button
             title={settingPassword ? 'Set password' : 'Update password'}
             variant="secondary"
-            onPress={handleChangePassword}
+            onPress={() => void handleChangePassword()}
             loading={savingPassword}
-            disabled={newPassword.length === 0 || confirmPassword.length === 0}
+            disabled={newPassword.length === 0 || confirmPassword.length === 0 || savingPassword}
             fullWidth
           />
         </Card>
 
-          <Divider />
-          <Text style={[Typography.caption, styles.footer, { color: colors.textMuted }]}>
-            Signed in as {email ?? 'your account'}
-          </Text>
+        <Divider />
+        <Text style={[Typography.caption, styles.footer, { color: colors.textMuted }]}>
+          Signed in as {email ?? 'your account'}
+        </Text>
       </KeyboardAwareScrollView>
     </View>
   );
+}
+
+export default function ProfileScreen() {
+  const { user, isLoaded } = useUser();
+
+  if (!isLoaded || !user) {
+    return null;
+  }
+
+  return <ProfileEditor key={user.id} user={user} />;
 }
 
 const styles = StyleSheet.create({
@@ -368,9 +434,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: 48 },
   body: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
   banner: { marginBottom: Spacing.md },
   avatarSection: { alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
@@ -385,7 +450,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.full,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

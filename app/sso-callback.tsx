@@ -1,43 +1,38 @@
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '@clerk/expo';
 import { Redirect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 
+import { hideNativeSplash } from '@/components/splash-controller';
 import { Screen, Spinner } from '@/components/ui';
 
-// Completes the in-app browser session when Google OAuth redirects back here.
 WebBrowser.maybeCompleteAuthSession();
 
 /**
- * OAuth redirect landing route. Google SSO uses `sso-callback` as the deep-link
- * path (see GoogleButton). Without this screen Expo Router shows "Unmatched route".
+ * Deep-link landing after Google OAuth.
+ * Primary completion is in GoogleButton; this route catches Expo Go redirects.
  */
 export default function SSOCallbackScreen() {
   const { isLoaded, isSignedIn } = useAuth();
-  const [ready, setReady] = useState(false);
+  const [waited, setWaited] = useState(false);
 
-  // Allow Clerk a moment to activate the session after the browser returns.
   useEffect(() => {
-    if (!isLoaded) return;
-    if (isSignedIn) {
-      setReady(true);
-      return;
-    }
-    const timer = setTimeout(() => setReady(true), 1500);
-    return () => clearTimeout(timer);
+    hideNativeSplash();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded || isSignedIn) return;
+    const t = setTimeout(() => setWaited(true), 2000);
+    return () => clearTimeout(t);
   }, [isLoaded, isSignedIn]);
 
-  if (!isLoaded || !ready) {
+  if (!isLoaded || (!isSignedIn && !waited)) {
     return (
       <Screen>
-        <Spinner centered />
+        <Spinner centered label="Finishing sign-in…" />
       </Screen>
     );
   }
 
-  if (isSignedIn) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <Redirect href="/(auth)/sign-in" />;
+  return <Redirect href={isSignedIn ? '/(tabs)' : '/(auth)/sign-in'} />;
 }
