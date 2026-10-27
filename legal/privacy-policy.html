@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ragmob — Privacy policy</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f5f2;
+        --text: #121212;
+        --muted: #5c5c5c;
+        --card: #ffffff;
+        --border: #e4e0da;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --text: #f5f5f5;
+          --muted: #a3a3a3;
+          --card: #171717;
+          --border: #2a2a2a;
+        }
+      }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+      }
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 3rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 2rem;
+        margin: 0 0 0.35rem;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin-top: 1.75rem;
+      }
+      p,
+      li {
+        color: var(--muted);
+      }
+      .meta {
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem 1.35rem;
+        margin: 1.25rem 0;
+      }
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy policy</h1>
+      <p class="meta">Last updated: 26 April 2026 · Product: Ragmob AI Chat Assistant</p>
+
+      <p>
+        This draft policy describes how Ragmob (“we”, “us”) handles information when you use the
+        mobile app. Host this page on HTTPS and replace bracketed placeholders before Play
+        submission.
+      </p>
+
+      <div class="card">
+        <strong>Processors you must name in the live policy</strong>
+        <ul>
+          <li><strong>Clerk</strong> — authentication, account profile, avatars</li>
+          <li><strong>[LLM provider]</strong> — processes prompts/replies to generate answers</li>
+          <li><strong>[Hosting / database]</strong> — API and chat storage (e.g. Neon)</li>
+        </ul>
+      </div>
+
+      <h2>Data we collect</h2>
+      <ul>
+        <li>Account data: email, name, password (hashed by Clerk), optional profile photo</li>
+        <li>Chat content: messages you send and assistant replies</li>
+        <li>Feedback and reports you submit about assistant responses</li>
+        <li>Device permissions you grant (e.g. camera, photos, or microphone when you use those features)</li>
+        <li>Consent version and timestamp when you accept the in-app AI disclaimer</li>
+      </ul>
+
+      <h2>How we use data</h2>
+      <ul>
+        <li>Authenticate you and sync conversations</li>
+        <li>Generate AI responses via our API and model provider</li>
+        <li>Review reports for safety and abuse</li>
+        <li>Enforce usage limits</li>
+      </ul>
+
+      <h2>Sharing</h2>
+      <p>
+        We share account data with Clerk and chat content with our backend and LLM provider as
+        needed to operate the service. We do not sell personal information or use ads/ad IDs.
+      </p>
+
+      <h2>Retention &amp; deletion</h2>
+      <p>
+        You can delete chats or your entire account in Settings. You can also request deletion via
+        <a href="./account-deletion.html">the account deletion page</a>. Residual backups may be
+        removed within 30 days.
+      </p>
+
+      <h2>AI disclaimer</h2>
+      <p>
+        Ragmob responses can be wrong. The app is not medical, legal, or financial advice.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Privacy questions:
+        <a href="mailto:privacy@ragmob.app">privacy@ragmob.app</a>
+      </p>
+    </main>
+  </body>
+</html>

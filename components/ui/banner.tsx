@@ -61,15 +61,6 @@ export function Banner({
           ? 'rgba(52,211,153,0.1)'
           : colors.brandGlow;
 
-  const borderOpacity =
-    tone === 'error'
-      ? 'rgba(248,113,113,0.25)'
-      : tone === 'warning'
-        ? 'rgba(251,191,36,0.25)'
-        : tone === 'success'
-          ? 'rgba(52,211,153,0.25)'
-          : 'rgba(108,99,255,0.25)';
-
   return (
     <Animated.View
       accessibilityRole="alert"
@@ -77,7 +68,6 @@ export function Banner({
         styles.banner,
         {
           backgroundColor: bgOpacity,
-          borderColor: borderOpacity,
           transform: [{ translateY }],
         },
         style,
@@ -104,7 +94,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     borderRadius: Radius.md,
-    borderWidth: 1,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
   },

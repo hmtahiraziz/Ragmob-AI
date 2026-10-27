@@ -63,12 +63,25 @@ export function Screen({
 
   const surface = gradient ? 'transparent' : colors.background;
 
+  // Keyboard-aware screens pad the scroll content themselves — skip outer bottom inset
+  // so the keyboard doesn't fight a fixed safe-area padding on the root.
+  const scrollEdges = keyboardAware
+    ? (edges.filter((e) => e !== 'bottom') as Edge[])
+    : edges;
+  const scrollSafeArea: ViewStyle = {
+    paddingTop: scrollEdges.includes('top') ? insets.top : 0,
+    paddingBottom: scrollEdges.includes('bottom') ? insets.bottom : 0,
+    paddingLeft: scrollEdges.includes('left') ? insets.left : 0,
+    paddingRight: scrollEdges.includes('right') ? insets.right : 0,
+  };
+
   const body = scroll ? (
     keyboardAware ? (
       <KeyboardAwareScrollView
         style={[styles.flex, { backgroundColor: surface }]}
         contentContainerStyle={[padding, contentContainerStyle]}
-        bottomInset={Spacing.xl}>
+        focusGap={36}
+        bottomInset={insets.bottom + Spacing.xxl}>
         {children}
       </KeyboardAwareScrollView>
     ) : (
@@ -89,7 +102,7 @@ export function Screen({
       style={[
         styles.flex,
         { backgroundColor: surface },
-        safeArea,
+        keyboardAware ? scrollSafeArea : safeArea,
         style,
         { opacity },
         fadeIn && Platform.OS === 'web' ? styles.webFadeRoot : null,
