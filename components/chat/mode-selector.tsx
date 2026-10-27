@@ -3,33 +3,25 @@ import { StyleSheet, View } from 'react-native';
 import { PersonaPicker } from '@/components/chat/persona-picker';
 import { Spacing } from '@/constants/theme';
 import { useContentWidth } from '@/hooks/use-content-width';
-import { useTheme } from '@/hooks/use-theme';
 import type { ChatMode } from '@/types/chat';
 
 type ModeSelectorProps = {
   mode: ChatMode;
   onChange: (mode: ChatMode) => void;
-  disabled?: boolean;
 };
 
-/** Compact horizontal persona strip for the chat screen. */
-export function ModeSelector({ mode, onChange, disabled = false }: ModeSelectorProps) {
-  const { colors } = useTheme();
+/** Compact horizontal persona strip — only shown before the first message. */
+export function ModeSelector({ mode, onChange }: ModeSelectorProps) {
   const { containerStyle } = useContentWidth();
 
   return (
-    <View
-      style={[
-        styles.bar,
-        { backgroundColor: colors.surface, borderBottomColor: colors.border },
-      ]}>
+    <View style={styles.bar}>
       <View style={[styles.barInner, containerStyle]}>
         <PersonaPicker
           variant="strip"
           selected={mode}
           onSelect={onChange}
-          disabled={disabled}
-          showHeading={!disabled}
+          showHeading={false}
         />
       </View>
     </View>
@@ -38,12 +30,14 @@ export function ModeSelector({ mode, onChange, disabled = false }: ModeSelectorP
 
 const styles = StyleSheet.create({
   bar: {
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingTop: 2,
+    paddingBottom: Spacing.xs,
+    overflow: 'visible',
   },
   barInner: {
     paddingLeft: Spacing.md,
+    paddingRight: 0,
     width: '100%',
+    overflow: 'visible',
   },
 });

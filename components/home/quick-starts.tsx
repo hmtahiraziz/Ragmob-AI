@@ -1,51 +1,56 @@
 import { Feather } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, Divider } from '@/components/ui';
-import { Radius, Spacing, Typography } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-type QuickStart = {
+type Accent = 'lavender' | 'ink' | 'amber' | 'success';
+
+type FeaturedPrompt = {
   id: string;
   icon: keyof typeof Feather.glyphMap;
   title: string;
   subtitle: string;
   prompt: string;
-  iconBg: 'lavender' | 'ink' | 'amber' | 'success';
+  accent: Accent;
 };
 
-const QUICK_STARTS: QuickStart[] = [
+const FEATURED: FeaturedPrompt[] = [
   {
     id: 'summarize',
     icon: 'file-text',
-    title: 'Summarize notes',
-    subtitle: 'Turn long text into clear bullet points',
-    prompt: 'Summarize my notes in bullet points',
-    iconBg: 'lavender',
+    title: 'Summarize',
+    subtitle: 'Notes → bullets',
+    prompt:
+      'Summarize the following notes into clear bullet points, then list 3 action items:',
+    accent: 'lavender',
   },
   {
     id: 'debug',
     icon: 'code',
-    title: 'Debug React Native',
-    subtitle: 'Get step-by-step troubleshooting help',
-    prompt: 'Help me debug a React Native error',
-    iconBg: 'ink',
+    title: 'Debug code',
+    subtitle: 'Find and fix bugs',
+    prompt:
+      'Help me debug this. Explain the likely cause, then give a corrected version:\n\n',
+    accent: 'ink',
   },
   {
     id: 'email',
     icon: 'mail',
-    title: 'Draft an email',
-    subtitle: 'Professional tone, ready to send',
-    prompt: 'Draft a professional email reply',
-    iconBg: 'amber',
+    title: 'Draft email',
+    subtitle: 'Ready to send',
+    prompt:
+      'Draft a professional email. Keep it concise, friendly, and clear. Topic:',
+    accent: 'amber',
   },
   {
-    id: 'routine',
-    icon: 'sun',
-    title: 'Morning routine',
-    subtitle: 'Build a focused start to your day',
-    prompt: 'Plan a productive morning routine',
-    iconBg: 'success',
+    id: 'plan',
+    icon: 'calendar',
+    title: 'Make a plan',
+    subtitle: 'Week ahead steps',
+    prompt:
+      'Create a realistic 7-day plan with daily goals and time estimates for:',
+    accent: 'success',
   },
 ];
 
@@ -56,7 +61,7 @@ type QuickStartsProps = {
 export function QuickStarts({ onSelect }: QuickStartsProps) {
   const { colors } = useTheme();
 
-  function iconColors(kind: QuickStart['iconBg']) {
+  function accentColors(kind: Accent) {
     switch (kind) {
       case 'lavender':
         return { bg: colors.lavenderSoft, fg: colors.primaryDark };
@@ -71,43 +76,50 @@ export function QuickStarts({ onSelect }: QuickStartsProps) {
 
   return (
     <View style={styles.section}>
-      <View style={styles.heading}>
-        <Text style={[Typography.label, { color: colors.textMuted }]}>Quick starts</Text>
-        <Text style={[Typography.caption, { color: colors.textSecondary }]}>
-          Suggested prompts to get you going
-        </Text>
+      <View style={styles.header}>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Suggested prompts</Text>
+        <Text style={[styles.headerHint, { color: colors.textSecondary }]}>Tap to start</Text>
       </View>
 
-      <Card padded={false}>
-        {QUICK_STARTS.map((item, index) => {
-          const accent = iconColors(item.iconBg);
-          const isLast = index === QUICK_STARTS.length - 1;
-
+      <View style={styles.grid}>
+        {FEATURED.map((item) => {
+          const accent = accentColors(item.accent);
           return (
-            <View key={item.id}>
-              <Pressable
-                onPress={() => onSelect(item.prompt)}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.title}. ${item.subtitle}`}
-                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}>
+            <Pressable
+              key={item.id}
+              onPress={() => onSelect(item.prompt)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}. ${item.subtitle}`}
+              style={({ pressed }) => [
+                styles.tile,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                },
+              ]}>
+              <View style={styles.tileTop}>
                 <View style={[styles.icon, { backgroundColor: accent.bg }]}>
-                  <Feather name={item.icon} size={17} color={accent.fg} />
+                  <Feather name={item.icon} size={15} color={accent.fg} />
                 </View>
-                <View style={styles.copy}>
-                  <Text style={[Typography.body, styles.title, { color: colors.text }]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={[Typography.caption, { color: colors.textMuted }]} numberOfLines={2}>
-                    {item.subtitle}
-                  </Text>
+                <View style={[styles.arrow, { backgroundColor: colors.surface2 }]}>
+                  <Feather name="arrow-up-right" size={12} color={colors.textSecondary} />
                 </View>
-                <Feather name="arrow-up-right" size={16} color={colors.textMuted} />
-              </Pressable>
-              {!isLast ? <Divider inset={Spacing.lg + 40 + Spacing.md} /> : null}
-            </View>
+              </View>
+
+              <View style={styles.copy}>
+                <Text style={[styles.tileTitle, { color: colors.text }]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+                <Text style={[styles.tileSub, { color: colors.textMuted }]} numberOfLines={1}>
+                  {item.subtitle}
+                </Text>
+              </View>
+            </Pressable>
           );
         })}
-      </Card>
+      </View>
     </View>
   );
 }
@@ -117,33 +129,69 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
   },
-  heading: {
-    gap: 4,
-    paddingHorizontal: Spacing.xs,
-  },
-  row: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  headerHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  tile: {
+    width: '48.5%',
+    flexGrow: 1,
+    minWidth: '46%',
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    minHeight: 112,
+    justifyContent: 'space-between',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    minHeight: 68,
+  },
+  tileTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   icon: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrow: {
+    width: 24,
+    height: 24,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
   copy: {
-    flex: 1,
     gap: 3,
-    minWidth: 0,
   },
-  title: {
-    fontWeight: '600',
+  tileTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     letterSpacing: -0.2,
+    lineHeight: 20,
+  },
+  tileSub: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

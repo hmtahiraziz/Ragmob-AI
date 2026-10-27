@@ -94,8 +94,8 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   base: {
-    minWidth: 40,
-    minHeight: 40,
+    minWidth: 48,
+    minHeight: 48,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
