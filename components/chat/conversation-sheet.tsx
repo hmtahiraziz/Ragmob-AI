@@ -81,7 +81,6 @@ export function ConversationSheet({
           styles.sheet,
           {
             backgroundColor: colors.surface,
-            borderColor: colors.border,
             paddingBottom: insets.bottom + Spacing.md,
           },
         ]}>
@@ -135,7 +134,6 @@ export function ConversationSheet({
                   styles.row,
                   {
                     backgroundColor: isActive ? colors.brandGlow : colors.surface2,
-                    borderColor: isActive ? colors.primary : colors.border,
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}>
@@ -148,7 +146,7 @@ export function ConversationSheet({
                       onBlur={commitRename}
                       autoFocus
                       returnKeyType="done"
-                      style={[Typography.body, styles.editInput, { color: colors.text, borderColor: colors.primary }]}
+                      style={[Typography.body, styles.editInput, { color: colors.text }]}
                       placeholderTextColor={colors.textMuted}
                     />
                   ) : (
@@ -190,7 +188,6 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.md,
   },
   handle: { alignItems: 'center', paddingVertical: Spacing.sm },
@@ -210,12 +207,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     padding: Spacing.md,
     borderRadius: Radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   rowMain: { flex: 1, gap: 2 },
   rowAction: { padding: Spacing.xs },
   editInput: {
-    borderBottomWidth: 1,
     paddingVertical: 2,
   },
 });

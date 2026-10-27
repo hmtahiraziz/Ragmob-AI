@@ -1,11 +1,16 @@
-import { useSignIn } from '@clerk/clerk-expo';
-import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSignIn } from '@clerk/expo/legacy';
+import { useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
+import { AuthFooter } from '@/components/auth/auth-footer';
 import { AuthHeader } from '@/components/auth/auth-header';
+import { AuthScreen } from '@/components/auth/auth-screen';
 import { GoogleButton } from '@/components/auth/google-button';
-import { Banner, Button, Divider, Screen, TextField } from '@/components/ui';
+import { VerifyEmailForm } from '@/components/auth/verify-email-form';
+import { hideNativeSplash } from '@/components/splash-controller';
+import { Banner, Button, Divider, Screen, Spinner, TextField } from '@/components/ui';
+import type { TextFieldHandle } from '@/components/ui/text-field';
 import { Gradients, Spacing, Typography } from '@/constants/theme';
 import { describeClerkAuthError, isMissingAuthAttempt, isValidEmail, normalizeEmail } from '@/lib/auth/clerk';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,21 +19,31 @@ export default function SignInScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { isLoaded, signIn, setActive } = useSignIn();
+  const passwordRef = useRef<TextFieldHandle | null>(null);
 
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [code, setCode] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (!isLoaded) {
-    return null;
+    return (
+      <Screen gradient={Gradients.auth}>
+        <Spinner centered label="Loading…" />
+      </Screen>
+    );
   }
+
+  const emailNormalized = normalizeEmail(emailAddress);
+  const emailInvalid = emailTouched && emailAddress.trim().length > 0 && !isValidEmail(emailNormalized);
+  const canSubmit = isValidEmail(emailNormalized) && password.length > 0 && !loading;
 
   const handleSubmit = async () => {
     setError(null);
+    setEmailTouched(true);
     const identifier = normalizeEmail(emailAddress);
 
     if (!isValidEmail(identifier)) {
@@ -46,6 +61,7 @@ export default function SignInScreen() {
 
       if (attempt.status === 'complete') {
         await setActive({ session: attempt.createdSessionId });
+        hideNativeSplash();
         return;
       }
 
@@ -84,23 +100,18 @@ export default function SignInScreen() {
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerify = async (code: string) => {
     setError(null);
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-      setError('Enter the verification code from your email.');
-      return;
-    }
-
     setLoading(true);
     try {
       const attempt = await signIn.attemptFirstFactor({
         strategy: 'email_code',
-        code: trimmedCode,
+        code,
       });
 
       if (attempt.status === 'complete') {
         await setActive({ session: attempt.createdSessionId });
+        hideNativeSplash();
       } else {
         setError('Verification incomplete. Please try again.');
       }
@@ -108,7 +119,6 @@ export default function SignInScreen() {
       setError(describeClerkAuthError(err, 'Verification failed. Please try again.'));
       if (isMissingAuthAttempt(err)) {
         setPendingVerification(false);
-        setCode('');
       }
     } finally {
       setLoading(false);
@@ -138,7 +148,6 @@ export default function SignInScreen() {
       setError(describeClerkAuthError(err, 'Could not resend code. Please try again.'));
       if (isMissingAuthAttempt(err)) {
         setPendingVerification(false);
-        setCode('');
       }
     } finally {
       setLoading(false);
@@ -147,111 +156,110 @@ export default function SignInScreen() {
 
   const handleForgotPassword = () => {
     const email = normalizeEmail(emailAddress);
-    router.push({
-      pathname: '/forgot-password',
+    router.replace({
+      pathname: '/(auth)/forgot-password',
       params: email ? { email } : {},
     });
   };
 
-  const handleBackToSignIn = () => {
-    setPendingVerification(false);
-    setCode('');
-    setError(null);
-  };
-
   if (pendingVerification) {
     return (
-      <Screen scroll keyboardAware fadeIn gradient={Gradients.auth} contentContainerStyle={styles.content}>
-        <AuthHeader
-          title="Verify your email"
-          subtitle={`Enter the code we sent to ${normalizeEmail(emailAddress)}.`}
-        />
-
-        <Banner tone="info" message="Check your inbox to finish signing in." style={styles.banner} />
-        {error ? <Banner tone="error" message={error} style={styles.banner} /> : null}
-
-        <TextField
-          label="Verification code"
-          placeholder="123456"
-          value={code}
-          onChangeText={setCode}
-          keyboardType="number-pad"
-          autoComplete="one-time-code"
-        />
-        <Button title="Verify" size="lg" onPress={handleVerify} loading={loading} disabled={!code.trim()} fullWidth />
-        <Button title="Send a new code" variant="ghost" onPress={handleResendCode} loading={loading} />
-        <Button title="Back to sign in" variant="ghost" onPress={handleBackToSignIn} />
-      </Screen>
+      <VerifyEmailForm
+        email={normalizeEmail(emailAddress)}
+        error={error}
+        loading={loading}
+        intent="sign-in"
+        onVerify={handleVerify}
+        onResend={handleResendCode}
+        onBack={() => {
+          setPendingVerification(false);
+          setError(null);
+        }}
+      />
     );
   }
 
   return (
-    <Screen scroll keyboardAware fadeIn gradient={Gradients.auth} contentContainerStyle={styles.content}>
-      <AuthHeader title="Welcome back" subtitle="Log in to your ragmob account" />
+    <AuthScreen
+      form={
+        <>
+          {error ? <Banner tone="error" message={error} style={styles.banner} /> : null}
 
-      {error ? <Banner tone="error" message={error} style={styles.banner} /> : null}
+          <TextField
+            label="Email"
+            placeholder="name@company.com"
+            leftIcon="mail"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            value={emailAddress}
+            onChangeText={(v) => {
+              setEmailAddress(v);
+              if (error) setError(null);
+            }}
+            onBlur={() => setEmailTouched(true)}
+            onEndEditing={() => setEmailAddress((v) => normalizeEmail(v))}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            error={emailInvalid ? 'Enter a valid email address' : undefined}
+            containerStyle={styles.fieldInPanel}
+          />
+          <TextField
+            inputRef={passwordRef}
+            label="Password"
+            labelAccessory={
+              <Pressable hitSlop={10} onPress={handleForgotPassword} accessibilityRole="button">
+                <Text style={[Typography.caption, styles.forgot, { color: colors.primaryDark }]}>
+                  Forgot?
+                </Text>
+              </Pressable>
+            }
+            placeholder="Your password"
+            leftIcon="lock"
+            secureTextEntry={!showPassword}
+            rightIcon={showPassword ? 'eye-off' : 'eye'}
+            onRightIconPress={() => setShowPassword((v) => !v)}
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="go"
+            value={password}
+            onChangeText={(v) => {
+              setPassword(v);
+              if (error) setError(null);
+            }}
+            onSubmitEditing={() => {
+              if (canSubmit) void handleSubmit();
+            }}
+            containerStyle={styles.fieldInPanelLast}
+          />
 
-      <TextField
-        label="Email address"
-        placeholder="name@company.com"
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
-        value={emailAddress}
-        onChangeText={setEmailAddress}
-        onEndEditing={() => setEmailAddress((v) => normalizeEmail(v))}
-      />
-      <TextField
-        label="Password"
-        labelAccessory={
-          <Pressable hitSlop={8} onPress={handleForgotPassword}>
-            <Text style={[Typography.caption, { color: colors.primaryDark, fontWeight: '600' }]}>
-              Forgot password?
-            </Text>
-          </Pressable>
-        }
-        placeholder="Enter your password"
-        secureTextEntry={!showPassword}
-        rightIcon={showPassword ? 'eye-off' : 'eye'}
-        onRightIconPress={() => setShowPassword((v) => !v)}
-        autoComplete="password"
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <Button
-        title="Sign in"
-        size="lg"
-        onPress={handleSubmit}
-        loading={loading}
-        disabled={!emailAddress.trim() || !password}
-        fullWidth
-      />
-
-      <Divider label="or" />
-
-      <GoogleButton onError={(m) => setError(m || null)} />
-
-      <View style={styles.footer}>
-        <Text style={[Typography.body, { color: colors.textSecondary }]}>Don&apos;t have an account? </Text>
-        <Link href="/(auth)/sign-up" asChild>
-          <Pressable hitSlop={8}>
-            <Text style={[Typography.body, styles.footerLink, { color: colors.primaryDark }]}>Sign up</Text>
-          </Pressable>
-        </Link>
-      </View>
-    </Screen>
+          <Button
+            title="Sign in"
+            size="lg"
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={!canSubmit}
+            fullWidth
+          />
+        </>
+      }
+      footer={
+        <>
+          <Divider label="or" />
+          <GoogleButton onError={(m) => setError(m || null)} />
+          <AuthFooter prompt="Don't have an account?" actionLabel="Sign up" href="/(auth)/sign-up" />
+        </>
+      }>
+      <AuthHeader title="Welcome back" subtitle="Sign in to continue your conversations." />
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.xl },
   banner: { marginBottom: Spacing.md },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-  },
-  footerLink: { fontWeight: '600' },
+  fieldInPanel: { marginBottom: Spacing.md },
+  fieldInPanelLast: { marginBottom: Spacing.lg },
+  forgot: { fontWeight: '600' },
 });

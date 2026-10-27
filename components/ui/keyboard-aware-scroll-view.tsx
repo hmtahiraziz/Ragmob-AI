@@ -2,24 +2,20 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
   type ReactNode,
   type RefObject,
 } from 'react';
 import {
-  Dimensions,
-  Platform,
-  ScrollView,
   View,
-  type ScrollViewProps,
+  type ScrollView,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { KeyboardAwareScrollView as KCScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/theme';
-import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
 
 type KeyboardAwareScrollContextValue = {
   onInputFocus: (field: View) => void;
@@ -32,8 +28,9 @@ export function useKeyboardAwareScroll() {
   return useContext(KeyboardAwareScrollContext);
 }
 
-type KeyboardAwareScrollViewProps = Omit<ScrollViewProps, 'contentContainerStyle'> & {
+type KeyboardAwareScrollViewProps = {
   children: ReactNode;
+  style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** Extra space between the focused field and the keyboard top. */
   focusGap?: number;
@@ -43,84 +40,35 @@ type KeyboardAwareScrollViewProps = Omit<ScrollViewProps, 'contentContainerStyle
 };
 
 /**
- * ScrollView that pads for the keyboard (Android edge-to-edge safe) and scrolls
- * focused inputs into view — standard pattern for form screens.
+ * Auth/forms scroll view powered by react-native-keyboard-controller.
  */
 export function KeyboardAwareScrollView({
   children,
+  style,
   contentContainerStyle,
-  focusGap = 24,
+  focusGap = 36,
   bottomInset,
-  scrollRef: externalRef,
-  onScroll,
-  ...rest
+  scrollRef,
 }: KeyboardAwareScrollViewProps) {
-  const internalRef = useRef<ScrollView>(null);
-  const scrollRef = externalRef ?? internalRef;
-  const scrollY = useRef(0);
-  const focusedFieldRef = useRef<View | null>(null);
-  const keyboardInset = useKeyboardInset();
   const insets = useSafeAreaInsets();
+  const focusedFieldRef = useRef<View | null>(null);
 
-  const paddingBottom =
-    keyboardInset + (bottomInset ?? insets.bottom + Spacing.xl);
-
-  const scrollFieldIntoView = useCallback(
-    (field: View) => {
-      requestAnimationFrame(() => {
-        field.measureInWindow((_x, y, _w, height) => {
-          const windowHeight = Dimensions.get('window').height;
-          const visibleBottom = windowHeight - keyboardInset - focusGap;
-          const fieldBottom = y + height;
-          const overflow = fieldBottom - visibleBottom;
-          if (overflow > 0) {
-            scrollRef.current?.scrollTo({
-              y: scrollY.current + overflow,
-              animated: true,
-            });
-          }
-        });
-      });
-    },
-    [focusGap, keyboardInset, scrollRef],
-  );
-
-  const onInputFocus = useCallback(
-    (field: View) => {
-      focusedFieldRef.current = field;
-      scrollFieldIntoView(field);
-    },
-    [scrollFieldIntoView],
-  );
-
-  useEffect(() => {
-    if (keyboardInset > 0 && focusedFieldRef.current) {
-      const delay = Platform.OS === 'android' ? 80 : 40;
-      const timer = setTimeout(() => {
-        if (focusedFieldRef.current) {
-          scrollFieldIntoView(focusedFieldRef.current);
-        }
-      }, delay);
-      return () => clearTimeout(timer);
-    }
-  }, [keyboardInset, scrollFieldIntoView]);
+  const onInputFocus = useCallback((field: View) => {
+    focusedFieldRef.current = field;
+  }, []);
 
   return (
     <KeyboardAwareScrollContext.Provider value={{ onInputFocus }}>
-      <ScrollView
-        ref={scrollRef}
+      <KCScrollView
+        ref={scrollRef as never}
+        style={style}
+        contentContainerStyle={contentContainerStyle}
+        bottomOffset={focusGap}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        contentContainerStyle={[contentContainerStyle, { paddingBottom }]}
-        onScroll={(event) => {
-          scrollY.current = event.nativeEvent.contentOffset.y;
-          onScroll?.(event);
-        }}
-        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        {...rest}>
+        extraKeyboardSpace={bottomInset ?? insets.bottom + Spacing.xxl}>
         {children}
-      </ScrollView>
+      </KCScrollView>
     </KeyboardAwareScrollContext.Provider>
   );
 }
